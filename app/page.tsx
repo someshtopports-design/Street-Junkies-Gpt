@@ -1,5 +1,9 @@
 import StreetJunkiesConsole from "@/components/StreetJunkiesConsole";
 
-export default function ConsolePage() {
+export default function Home() {
   return <StreetJunkiesConsole />;
 }
+
+
+
+
