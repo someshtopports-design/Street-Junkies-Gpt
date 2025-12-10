@@ -59,6 +59,8 @@ const StreetJunkiesConsole: React.FC = () => {
 
   // Auth Listener
   React.useEffect(() => {
+    // Auth Listener
+    if (!auth) return;
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
       if (currentUser) {
@@ -89,6 +91,7 @@ const StreetJunkiesConsole: React.FC = () => {
   }, [route]);
 
   const handleLogin = async (email: string, pass: string) => {
+    if (!auth) { alert("Firebase not initialized"); return; }
     try {
       await signInWithEmailAndPassword(auth, email, pass);
       // Auth listener handles the rest
