@@ -29,6 +29,11 @@ import {
   Camera,
 } from "lucide-react";
 
+// Firebase Imports
+import { auth, db } from "@/lib/firebase";
+import { onAuthStateChanged, signInWithEmailAndPassword, signOut, User as FirebaseUser } from "firebase/auth";
+import { doc, getDoc, collection, onSnapshot, addDoc, query, orderBy, deleteDoc, setDoc } from "firebase/firestore";
+
 type Role = "admin" | "manager" | "sales";
 type Route =
   | "login"
@@ -42,27 +47,64 @@ type Route =
 // Hook this into your router + Firebase auth and simply
 // set `role` + `route` from real data.
 const StreetJunkiesConsole: React.FC = () => {
+  // Real State
+  const [user, setUser] = useState<FirebaseUser | null>(null);
   const [role, setRole] = useState<Role | null>(null);
   const [route, setRoute] = useState<Route>("login");
+  const [loading, setLoading] = useState(true);
 
-  const handleMockLogin = (nextRole: Role) => {
-    // In production: replace this with Firebase Auth + Firestore role lookup.
-    setRole(nextRole);
-    if (nextRole === "sales") {
-      setRoute("admin/sales");
-    } else {
-      setRoute("admin");
+  // Auth Listener
+  React.useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      setUser(currentUser);
+      if (currentUser) {
+        // Fetch role from Firestore: users/{uid} -> { role: 'admin' }
+        try {
+          const userDoc = await getDoc(doc(db, "users", currentUser.uid));
+          if (userDoc.exists()) {
+            const userData = userDoc.data() as { role: Role };
+            setRole(userData.role || "sales");
+            // Default route based on role if currently on login
+            setRoute((prev) => (prev === "login" ? (userData.role === "sales" ? "admin/sales" : "admin") : prev));
+          } else {
+            // Fallback if no user doc exists (e.g. first run)
+            console.log("No user profile found, defaulting to sales");
+            setRole("sales");
+            setRoute("admin/sales");
+          }
+        } catch (error) {
+          console.error("Error fetching user role:", error);
+        }
+      } else {
+        setRole(null);
+        setRoute("login");
+      }
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, [route]);
+
+  const handleLogin = async (email: string, pass: string) => {
+    try {
+      await signInWithEmailAndPassword(auth, email, pass);
+      // Auth listener handles the rest
+    } catch (err: any) {
+      alert("Login failed: " + err.message);
     }
   };
 
-  const handleLogout = () => {
-    // In production: call Firebase signOut and clear state.
+  const handleLogout = async () => {
+    await signOut(auth);
     setRole(null);
     setRoute("login");
   };
 
-  if (!role || route === "login") {
-    return <LoginScreen onLogin={handleMockLogin} />;
+  if (loading) {
+    return <div className="min-h-screen bg-slate-950 flex items-center justify-center text-slate-500 text-xs">Loading Console...</div>;
+  }
+
+  if (!user || !role) {
+    return <LoginScreen onLogin={handleLogin} />;
   }
 
   const isAdmin = role === "admin";
@@ -103,10 +145,21 @@ const StreetJunkiesConsole: React.FC = () => {
 // =========================
 
 interface LoginScreenProps {
-  onLogin: (role: Role) => void;
+  onLogin: (email: string, pass: string) => void;
 }
 
 const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
+  const [email, setEmail] = useState("");
+  const [pass, setPass] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    await onLogin(email, pass);
+    setIsSubmitting(false);
+  };
+
   return (
     <div className="min-h-screen bg-slate-950 flex items-center justify-center px-4">
       <Card className="w-full max-w-md border border-slate-800/80 bg-slate-900/80 rounded-3xl p-6 space-y-6 shadow-xl shadow-emerald-500/10">
@@ -125,12 +178,11 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
         <div className="space-y-1">
           <h1 className="text-base font-semibold tracking-tight">Log in to continue</h1>
           <p className="text-xs text-slate-400">
-            Use your console credentials. Roles are resolved from Firestore
-            after Firebase Auth in production.
+            Use your console credentials. Roles are resolved from Firestore.
           </p>
         </div>
 
-        <div className="space-y-4 text-xs">
+        <form onSubmit={handleSubmit} className="space-y-4 text-xs">
           <div className="space-y-2">
             <label className="text-[11px] uppercase tracking-[0.16em] text-slate-400">
               Email
@@ -138,7 +190,10 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
             <Input
               type="email"
               placeholder="you@streetjunkies.io"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               className="bg-slate-950/60 border-slate-800/80 text-xs rounded-2xl"
+              required
             />
           </div>
           <div className="space-y-2">
@@ -148,46 +203,21 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
             <Input
               type="password"
               placeholder="••••••••"
+              value={pass}
+              onChange={(e) => setPass(e.target.value)}
               className="bg-slate-950/60 border-slate-800/80 text-xs rounded-2xl"
+              required
             />
           </div>
 
-          {/* Mock role selector – remove when wired to Firestore */}
-          <div className="space-y-2">
-            <label className="text-[11px] uppercase tracking-[0.16em] text-slate-400">
-              Quick role (mock)
-            </label>
-            <div className="grid grid-cols-3 gap-2">
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="text-[11px] border-slate-700 bg-slate-950/60"
-                onClick={() => onLogin("admin")}
-              >
-                Admin
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="text-[11px] border-slate-700 bg-slate-950/60"
-                onClick={() => onLogin("manager")}
-              >
-                Manager
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="text-[11px] border-slate-700 bg-slate-950/60"
-                onClick={() => onLogin("sales")}
-              >
-                Sales
-              </Button>
-            </div>
-          </div>
-        </div>
+          <Button
+            type="submit"
+            disabled={isSubmitting}
+            className="w-full bg-emerald-500 text-slate-950 hover:bg-emerald-400 text-xs font-semibold tracking-wide"
+          >
+            {isSubmitting ? "Logging in..." : "Access Console"}
+          </Button>
+        </form>
 
         <div className="flex items-center justify-between pt-2 text-[11px] text-slate-500">
           <span>Protected console · QR-driven sales</span>
@@ -348,11 +378,10 @@ interface SidebarItemProps {
 const SidebarItem: React.FC<SidebarItemProps> = ({ icon, label, active, pill, onClick }) => (
   <button
     onClick={onClick}
-    className={`flex items-center justify-between gap-2 rounded-xl px-2 py-1.5 text-xs transition-colors ${
-      active
-        ? "bg-slate-900 text-slate-50"
-        : "text-slate-400 hover:bg-slate-900/60 hover:text-slate-50"
-    }`}
+    className={`flex items-center justify-between gap-2 rounded-xl px-2 py-1.5 text-xs transition-colors ${active
+      ? "bg-slate-900 text-slate-50"
+      : "text-slate-400 hover:bg-slate-900/60 hover:text-slate-50"
+      }`}
   >
     <span className="inline-flex items-center gap-2">
       <span className="inline-flex items-center justify-center rounded-lg bg-slate-900/80 h-6 w-6">
@@ -372,45 +401,65 @@ const SidebarItem: React.FC<SidebarItemProps> = ({ icon, label, active, pill, on
 // /admin – Admin Dashboard & Analytics
 // =========================
 
-const AdminDashboardView: React.FC = () => (
-  <>
-    <HeroStrip />
+const AdminDashboardView: React.FC = () => {
+  const [sales, setSales] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-    <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
-      <MetricCard
-        label="Total revenue"
-        value="₹8.4L"
-        delta="▲ 18%"
-        deltaLabel="vs last 30 days"
-        pins="Live across DEL · BLR · BOM"
-      />
-      <MetricCard
-        label="Commission earned"
-        value="₹1.2L"
-        delta="▲ 11%"
-        deltaLabel="Street Junkies share"
-        pins="Dynamic per brand"
-      />
-      <MetricCard
-        label="Pending payouts"
-        value="₹6.1L"
-        delta="12 brands"
-        deltaLabel="awaiting settlement"
-        pins="Synced with invoices"
-      />
-    </section>
+  React.useEffect(() => {
+    // Listen to all sales (limit 50 for performance in this demo)
+    const q = query(collection(db, "sales"), orderBy("createdAt", "desc"));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setSales(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
 
-    <section className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-      <div className="lg:col-span-2 flex flex-col gap-3">
-        <RecentSales />
-        <BrandPerformance />
-      </div>
-      <div className="flex flex-col gap-3">
-        <FlowSummary />
-      </div>
-    </section>
-  </>
-);
+  // Compute Metrics
+  const totalRevenue = sales.reduce((acc, curr) => acc + (curr.amount || 0), 0);
+  const totalComm = sales.reduce((acc, curr) => acc + (curr.commission || 0), 0);
+  const totalPayout = sales.reduce((acc, curr) => acc + (curr.payoutAmount || 0), 0);
+
+  return (
+    <>
+      <HeroStrip />
+
+      <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <MetricCard
+          label="Total revenue"
+          value={`₹${(totalRevenue).toLocaleString()}`}
+          delta="Realtime"
+          deltaLabel="Life-time volume"
+          pins="Live across all stores"
+        />
+        <MetricCard
+          label="Commission earned"
+          value={`₹${(totalComm).toLocaleString()}`}
+          delta={`${((totalComm / (totalRevenue || 1)) * 100).toFixed(1)}%`}
+          deltaLabel="Avg. take rate"
+          pins="Dynamic per brand"
+        />
+        <MetricCard
+          label="Pending payouts"
+          value={`₹${(totalPayout).toLocaleString()}`}
+          delta={`${sales.length} orders`}
+          deltaLabel="awaiting settlement"
+          pins="Synced with invoices"
+        />
+      </section>
+
+      <section className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="lg:col-span-2 flex flex-col gap-3">
+          <RecentSales sales={sales.slice(0, 5)} loading={loading} />
+          <BrandPerformance sales={sales} />
+        </div>
+        <div className="flex flex-col gap-3">
+          <FlowSummary />
+        </div>
+      </section>
+    </>
+  );
+};
 
 const HeroStrip: React.FC = () => (
   <Card className="border border-slate-800/80 bg-slate-900/70 px-3 py-3 md:px-4 md:py-3.5 rounded-2xl">
@@ -482,7 +531,12 @@ const MetricCard: React.FC<MetricCardProps> = ({ label, value, delta, deltaLabel
   </Card>
 );
 
-const RecentSales: React.FC = () => (
+interface RecentSalesProps {
+  sales: any[];
+  loading: boolean;
+}
+
+const RecentSales: React.FC<RecentSalesProps> = ({ sales, loading }) => (
   <Card className="border border-slate-800/80 bg-slate-900/60 rounded-2xl px-3 py-3 flex flex-col gap-3">
     <div className="flex items-center justify-between">
       <div className="flex flex-col gap-0.5">
@@ -497,23 +551,22 @@ const RecentSales: React.FC = () => (
     </div>
 
     <div className="flex flex-col gap-2 text-xs">
-      {[
-        { brand: "AntiGravity Co.", item: "Hoodie AG-01", city: "DEL", amount: "₹4,200" },
-        { brand: "Neon District", item: "Cargo ND-07", city: "BLR", amount: "₹3,100" },
-        { brand: "Skyline Labs", item: "Sneaker SL-03", city: "BOM", amount: "₹7,800" },
-      ].map((sale) => (
+      {loading && <div className="text-slate-500">Loading sales...</div>}
+      {!loading && sales.length === 0 && <div className="text-slate-500">No sales recorded yet.</div>}
+
+      {sales.map((sale) => (
         <div
-          key={sale.item}
+          key={sale.id}
           className="flex items-center justify-between rounded-xl bg-slate-950/40 px-3 py-2"
         >
           <div className="flex flex-col">
             <span className="font-medium tracking-tight">{sale.brand}</span>
             <span className="text-[11px] text-slate-500">
-              {sale.item} · {sale.city}
+              {sale.item} · {sale.customer?.name || "Guest"}
             </span>
           </div>
           <span className="text-[11px] text-emerald-300 bg-emerald-500/10 border border-emerald-500/30 rounded-full px-2 py-0.5">
-            {sale.amount}
+            ₹{sale.amount}
           </span>
         </div>
       ))}
@@ -521,34 +574,56 @@ const RecentSales: React.FC = () => (
   </Card>
 );
 
-const BrandPerformance: React.FC = () => (
-  <Card className="border border-slate-800/80 bg-slate-900/60 rounded-2xl px-3 py-3 flex flex-col gap-3">
-    <div className="flex items-center justify-between">
-      <div className="flex flex-col gap-0.5">
-        <span className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Brand performance</span>
-        <span className="text-xs text-slate-400">Top partners by payout</span>
-      </div>
-    </div>
-    <div className="flex flex-col gap-2 text-xs">
-      {["AntiGravity Co.", "Neon District", "Skyline Labs"].map((brand, index) => (
-        <div key={brand} className="flex flex-col gap-1">
-          <div className="flex items-center justify-between">
-            <span className="text-slate-200">{brand}</span>
-            <span className="text-[11px] text-slate-400">
-              ₹{(5.3 - index * 1.2).toFixed(1)}L payout
-            </span>
-          </div>
-          <div className="h-1.5 rounded-full bg-slate-900 overflow-hidden">
-            <div
-              className="h-full rounded-full bg-gradient-to-r from-emerald-400 via-cyan-400 to-violet-500"
-              style={{ width: `${80 - index * 15}%` }}
-            />
-          </div>
+interface BrandPerformanceProps {
+  sales: any[];
+}
+
+const BrandPerformance: React.FC<BrandPerformanceProps> = ({ sales }) => {
+  // Aggregate sales by brand
+  const brandStats: Record<string, number> = {};
+  sales.forEach(s => {
+    brandStats[s.brand] = (brandStats[s.brand] || 0) + (s.payoutAmount || 0);
+  });
+
+  // Sort by payout
+  const sortedBrands = Object.entries(brandStats)
+    .sort(([, a], [, b]) => b - a)
+    .slice(0, 3); // Top 3
+
+  // Max value for bar chart
+  const maxVal = sortedBrands.length > 0 ? sortedBrands[0][1] : 1;
+
+  return (
+    <Card className="border border-slate-800/80 bg-slate-900/60 rounded-2xl px-3 py-3 flex flex-col gap-3">
+      <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-0.5">
+          <span className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Brand performance</span>
+          <span className="text-xs text-slate-400">Top partners by payout</span>
         </div>
-      ))}
-    </div>
-  </Card>
-);
+      </div>
+      <div className="flex flex-col gap-2 text-xs">
+        {sortedBrands.length === 0 && <div className="text-slate-500">No data available.</div>}
+        {sortedBrands.map(([brand, payout], index) => (
+          <div key={brand} className="flex flex-col gap-1">
+            <div className="flex items-center justify-between">
+              <span className="text-slate-200">{brand}</span>
+              <span className="text-[11px] text-slate-400">
+                ₹{payout.toLocaleString()} payout
+              </span>
+            </div>
+            <div className="h-1.5 rounded-full bg-slate-900 overflow-hidden">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-emerald-400 via-cyan-400 to-violet-500"
+                style={{ width: `${(payout / maxVal) * 100}%` }}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+};
+
 
 const FlowSummary: React.FC = () => (
   <Card className="border border-slate-800/80 bg-slate-900/60 rounded-2xl px-3 py-3 flex flex-col gap-3">
@@ -584,108 +659,152 @@ interface BrandsViewProps {
   canEdit: boolean;
 }
 
-const BrandsView: React.FC<BrandsViewProps> = ({ canEdit }) => (
-  <section className="flex flex-col gap-4">
-    <div className="flex items-center justify-between">
-      <div className="flex flex-col gap-0.5">
-        <span className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Brands</span>
-        <span className="text-xs text-slate-400">
-          Onboard partners and configure commission logic
-        </span>
+const BrandsView: React.FC<BrandsViewProps> = ({ canEdit }) => {
+  const [brands, setBrands] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Form State
+  const [newName, setNewName] = useState("");
+  const [newEmail, setNewEmail] = useState("");
+  const [newType, setNewType] = useState("Non-exclusive");
+  const [newComm, setNewComm] = useState("");
+  const [isAdding, setIsAdding] = useState(false);
+
+  // Listen to Brands
+  React.useEffect(() => {
+    const q = query(collection(db, "brands"), orderBy("createdAt", "desc"));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const b = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      setBrands(b);
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const handleAddBrand = async () => {
+    if (!newName || !newComm) return;
+    setIsAdding(true);
+    try {
+      await addDoc(collection(db, "brands"), {
+        name: newName,
+        email: newEmail,
+        type: newType,
+        commission: newComm,
+        createdAt: new Date(),
+      });
+      // Reset form
+      setNewName("");
+      setNewEmail("");
+      setNewComm("");
+    } catch (e) {
+      console.error(e);
+      alert("Error adding brand");
+    }
+    setIsAdding(false);
+  };
+
+  const handleDeleteBrand = async (id: string) => {
+    if (!confirm("Are you sure?")) return;
+    await deleteDoc(doc(db, "brands", id));
+  };
+
+  return (
+    <section className="flex flex-col gap-4">
+      <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-0.5">
+          <span className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Brands</span>
+          <span className="text-xs text-slate-400">
+            Onboard partners and configure commission logic
+          </span>
+        </div>
       </div>
-      {canEdit && (
-        <Button
-          size="sm"
-          className="bg-emerald-500 text-slate-950 hover:bg-emerald-400 text-xs"
-        >
-          <Plus className="w-3.5 h-3.5 mr-1" />
-          Add brand
-        </Button>
-      )}
-    </div>
 
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-      {/* Brand list */}
-      <Card className="lg:col-span-2 border border-slate-800/80 bg-slate-900/60 rounded-2xl px-3 py-3">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Active partners</span>
-          <span className="text-[11px] text-slate-500">3 brands</span>
-        </div>
-        <div className="flex flex-col gap-2 text-xs">
-          {[
-            { name: "AntiGravity Co.", type: "Exclusive", commission: "30%" },
-            { name: "Neon District", type: "Non-exclusive", commission: "22%" },
-            { name: "Skyline Labs", type: "Non-exclusive", commission: "18%" },
-          ].map((brand) => (
-            <div
-              key={brand.name}
-              className="flex items-center justify-between rounded-xl bg-slate-950/40 px-3 py-2"
-            >
-              <div className="flex flex-col">
-                <span className="font-medium tracking-tight">{brand.name}</span>
-                <span className="text-[11px] text-slate-500">{brand.type} partner</span>
-                <span className="text-[11px] text-slate-500">
-                  Commission: {brand.commission}
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-7 px-2 text-[11px] border-slate-700"
-                >
-                  View
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-7 px-2 text-[11px] border-rose-500/60 text-rose-300"
-                >
-                  Delete
-                </Button>
-              </div>
-            </div>
-          ))}
-        </div>
-      </Card>
-
-      {/* Brand form skeleton */}
-      <Card className="border border-slate-800/80 bg-slate-900/60 rounded-2xl px-3 py-3 text-xs">
-        <span className="text-[11px] uppercase tracking-[0.16em] text-slate-400">New brand (form)</span>
-        <p className="mt-1 text-[11px] text-slate-500">
-          Wire this form to the <code>brands</code> collection in Firestore.
-        </p>
-        <div className="mt-3 space-y-2">
-          <Input
-            placeholder="Brand name"
-            className="bg-slate-950/60 border-slate-800/80 text-xs rounded-2xl"
-          />
-          <Input
-            placeholder="Contact email / phone"
-            className="bg-slate-950/60 border-slate-800/80 text-xs rounded-2xl"
-          />
-          <div className="grid grid-cols-2 gap-2">
-            <Input
-              placeholder="Partner type (Exclusive)"
-              className="bg-slate-950/60 border-slate-800/80 text-xs rounded-2xl"
-            />
-            <Input
-              placeholder="Commission % (e.g. 25)"
-              className="bg-slate-950/60 border-slate-800/80 text-xs rounded-2xl"
-            />
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Brand list */}
+        <Card className="lg:col-span-2 border border-slate-800/80 bg-slate-900/60 rounded-2xl px-3 py-3">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Active partners</span>
+            <span className="text-[11px] text-slate-500">{brands.length} brands</span>
           </div>
-          <Button
-            disabled={!canEdit}
-            size="sm"
-            className="w-full mt-2 bg-emerald-500 text-slate-950 hover:bg-emerald-400 text-xs disabled:opacity-50"
-          >
-            Save brand
-          </Button>
-        </div>
-      </Card>
-    </div>
-  </section>
-);
+          <div className="flex flex-col gap-2 text-xs">
+            {loading && <div className="text-slate-500">Loading brands...</div>}
+            {!loading && brands.length === 0 && <div className="text-slate-500">No brands yet. Add one!</div>}
+
+            {brands.map((brand) => (
+              <div
+                key={brand.id}
+                className="flex items-center justify-between rounded-xl bg-slate-950/40 px-3 py-2"
+              >
+                <div className="flex flex-col">
+                  <span className="font-medium tracking-tight">{brand.name}</span>
+                  <span className="text-[11px] text-slate-500">{brand.type} partner</span>
+                  <span className="text-[11px] text-slate-500">
+                    Commission: {brand.commission}%
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 px-2 text-[11px] border-rose-500/60 text-rose-300"
+                    onClick={() => handleDeleteBrand(brand.id)}
+                    disabled={!canEdit}
+                  >
+                    Delete
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+
+        {/* Brand form */}
+        <Card className="border border-slate-800/80 bg-slate-900/60 rounded-2xl px-3 py-3 text-xs">
+          <span className="text-[11px] uppercase tracking-[0.16em] text-slate-400">New brand</span>
+          <p className="mt-1 text-[11px] text-slate-500">
+            Add a partner to the <code>brands</code> collection.
+          </p>
+          <div className="mt-3 space-y-2">
+            <Input
+              placeholder="Brand name"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              className="bg-slate-950/60 border-slate-800/80 text-xs rounded-2xl"
+            />
+            <Input
+              placeholder="Contact email"
+              value={newEmail}
+              onChange={(e) => setNewEmail(e.target.value)}
+              className="bg-slate-950/60 border-slate-800/80 text-xs rounded-2xl"
+            />
+            <div className="grid grid-cols-2 gap-2">
+              <Input
+                placeholder="Type (e.g. Exclusive)"
+                value={newType}
+                onChange={(e) => setNewType(e.target.value)}
+                className="bg-slate-950/60 border-slate-800/80 text-xs rounded-2xl"
+              />
+              <Input
+                placeholder="Comm % (e.g. 25)"
+                value={newComm}
+                onChange={(e) => setNewComm(e.target.value)}
+                className="bg-slate-950/60 border-slate-800/80 text-xs rounded-2xl"
+              />
+            </div>
+            <Button
+              disabled={!canEdit || isAdding}
+              onClick={handleAddBrand}
+              size="sm"
+              className="w-full mt-2 bg-emerald-500 text-slate-950 hover:bg-emerald-400 text-xs disabled:opacity-50"
+            >
+              {isAdding ? "Saving..." : "Save brand"}
+            </Button>
+          </div>
+        </Card>
+      </div>
+    </section>
+  );
+};
 
 // =========================
 // /admin/inventory – Inventory & QR generation
@@ -695,104 +814,131 @@ interface InventoryViewProps {
   canEdit: boolean;
 }
 
-const InventoryView: React.FC<InventoryViewProps> = ({ canEdit }) => (
-  <section className="flex flex-col gap-4">
-    <div className="flex items-center justify-between">
-      <div className="flex flex-col gap-0.5">
-        <span className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Inventory</span>
-        <span className="text-xs text-slate-400">
-          Add items, generate QR tokens, and sync stock per city
-        </span>
+const InventoryView: React.FC<InventoryViewProps> = ({ canEdit }) => {
+  const [items, setItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Form
+  const [name, setName] = useState("");
+  const [brand, setBrand] = useState("");
+  const [size, setSize] = useState("");
+  const [price, setPrice] = useState("");
+  const [stock, setStock] = useState("DEL 0");
+
+  React.useEffect(() => {
+    const q = query(collection(db, "inventory"), orderBy("createdAt", "desc"));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setItems(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const handleAddItem = async () => {
+    if (!name || !price) return;
+    try {
+      await addDoc(collection(db, "inventory"), {
+        name, brand, size, price, stock,
+        createdAt: new Date(),
+        qrToken: crypto.randomUUID(), // Or just use doc.id later
+      });
+      setName(""); setBrand(""); setSize(""); setPrice(""); setStock("DEL 0");
+    } catch (e) {
+      console.error(e);
+      alert("Error adding item");
+    }
+  };
+
+  const [selectedQR, setSelectedQR] = useState<string | null>(null);
+
+  return (
+    <section className="flex flex-col gap-4">
+      <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-0.5">
+          <span className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Inventory</span>
+          <span className="text-xs text-slate-400">
+            Add items, generate QR tokens, and sync stock per city
+          </span>
+        </div>
       </div>
-      {canEdit && (
-        <Button
-          size="sm"
-          className="bg-emerald-500 text-slate-950 hover:bg-emerald-400 text-xs"
-        >
-          <Plus className="w-3.5 h-3.5 mr-1" />
-          Add item
-        </Button>
-      )}
-    </div>
 
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-      {/* Inventory list */}
-      <Card className="lg:col-span-2 border border-slate-800/80 bg-slate-900/60 rounded-2xl px-3 py-3 text-xs">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Items</span>
-          <span className="text-[11px] text-slate-500">3 SKUs · City-level stock</span>
-        </div>
-        <div className="space-y-1.5">
-          {[
-            {
-              name: "AG Hoodie 01",
-              brand: "AntiGravity Co.",
-              size: "M",
-              price: "₹3,499",
-              stock: "DEL 8 · BLR 5",
-            },
-            {
-              name: "ND Cargo 07",
-              brand: "Neon District",
-              size: "32",
-              price: "₹2,799",
-              stock: "DEL 3 · BLR 9",
-            },
-            {
-              name: "SL Sneaker 03",
-              brand: "Skyline Labs",
-              size: "UK 9",
-              price: "₹7,499",
-              stock: "DEL 2 · BLR 2",
-            },
-          ].map((item) => (
-            <div
-              key={item.name}
-              className="flex items-center justify-between rounded-xl bg-slate-950/40 px-3 py-2"
-            >
-              <div className="flex flex-col">
-                <span className="font-medium tracking-tight">{item.name}</span>
-                <span className="text-[11px] text-slate-500">
-                  {item.brand} · {item.size}
-                </span>
-                <span className="text-[11px] text-slate-500">{item.stock}</span>
-              </div>
-              <div className="flex flex-col items-end gap-1">
-                <span className="text-[11px] text-slate-200">{item.price}</span>
-                <Button
-                  size="icon"
-                  variant="outline"
-                  className="h-7 w-7 border-slate-700"
-                >
-                  <QrCode className="w-3 h-3" />
-                </Button>
-              </div>
-            </div>
-          ))}
-        </div>
-      </Card>
-
-      {/* QR preview panel */}
-      <Card className="border border-slate-800/80 bg-slate-900/60 rounded-2xl px-3 py-3 text-xs flex flex-col gap-3 items-stretch">
-        <span className="text-[11px] uppercase tracking-[0.16em] text-slate-400">
-          QR token preview
-        </span>
-        <p className="text-[11px] text-slate-500">
-          Click "Generate QR" in your real app to encode the <code>qrToken</code>
-          from <code>inventoryItems</code>. Print and attach this to the product tag.
-        </p>
-        <div className="mt-1 flex flex-1 items-center justify-center">
-          <div className="h-28 w-28 rounded-2xl border border-dashed border-slate-700 flex items-center justify-center bg-slate-950/60">
-            <QrCode className="w-10 h-10 text-slate-500" />
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Inventory list */}
+        <Card className="lg:col-span-2 border border-slate-800/80 bg-slate-900/60 rounded-2xl px-3 py-3 text-xs">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Items</span>
+            <span className="text-[11px] text-slate-500">{items.length} SKUs</span>
           </div>
-        </div>
-        <span className="text-[11px] text-slate-500 text-center">
-          Example payload: <code>{"{ qrToken: \"uuid-v4\" }"}</code>
-        </span>
-      </Card>
-    </div>
-  </section>
-);
+
+          <div className="space-y-2 mb-4 p-3 bg-slate-950/40 rounded-xl border border-dashed border-slate-800">
+            <div className="grid grid-cols-2 gap-2">
+              <Input placeholder="Item Name" value={name} onChange={e => setName(e.target.value)} className="bg-slate-900/80 border-slate-700 h-8" />
+              <Input placeholder="Brand" value={brand} onChange={e => setBrand(e.target.value)} className="bg-slate-900/80 border-slate-700 h-8" />
+              <Input placeholder="Size" value={size} onChange={e => setSize(e.target.value)} className="bg-slate-900/80 border-slate-700 h-8" />
+              <Input placeholder="Price" value={price} onChange={e => setPrice(e.target.value)} className="bg-slate-900/80 border-slate-700 h-8" />
+            </div>
+            <Button size="sm" onClick={handleAddItem} disabled={!canEdit} className="w-full bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30 border border-emerald-600/50">
+              + Add New SKU
+            </Button>
+          </div>
+
+          <div className="space-y-1.5 h-64 overflow-y-auto pr-1">
+            {items.map((item) => (
+              <div
+                key={item.id}
+                className="flex items-center justify-between rounded-xl bg-slate-950/40 px-3 py-2 border border-transparent hover:border-slate-700 transition-colors"
+              >
+                <div className="flex flex-col">
+                  <span className="font-medium tracking-tight">{item.name}</span>
+                  <span className="text-[11px] text-slate-500">
+                    {item.brand} · {item.size}
+                  </span>
+                  <span className="text-[11px] text-slate-500">{item.stock}</span>
+                </div>
+                <div className="flex flex-col items-end gap-1">
+                  <span className="text-[11px] text-slate-200">₹{item.price}</span>
+                  <Button
+                    size="icon"
+                    variant="outline"
+                    className="h-7 w-7 border-slate-700"
+                    onClick={() => setSelectedQR(item.id)}
+                  >
+                    <QrCode className="w-3 h-3" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+
+        {/* QR preview panel */}
+        <Card className="border border-slate-800/80 bg-slate-900/60 rounded-2xl px-3 py-3 text-xs flex flex-col gap-3 items-stretch">
+          <span className="text-[11px] uppercase tracking-[0.16em] text-slate-400">
+            QR token preview
+          </span>
+          {selectedQR ? (
+            <>
+              <div className="mt-1 flex flex-1 items-center justify-center">
+                <div className="h-32 w-32 bg-white p-2 rounded-xl flex items-center justify-center">
+                  {/* Placeholder for actual QR code gen */}
+                  <QrCode className="w-24 h-24 text-black" />
+                </div>
+              </div>
+              <div className="text-center space-y-1">
+                <p className="font-mono text-[10px] text-emerald-400 bg-emerald-950/30 py-1 rounded">ID: {selectedQR}</p>
+                <p className="text-[10px] text-slate-500">Print this code for the product tag.</p>
+              </div>
+            </>
+          ) : (
+            <div className="flex-1 flex items-center justify-center text-slate-500 italic">
+              Select an item to view QR
+            </div>
+          )}
+        </Card>
+      </div>
+    </section>
+  );
+};
 
 // =========================
 // /admin/sales – Sales panel (core loop)
@@ -800,6 +946,59 @@ const InventoryView: React.FC<InventoryViewProps> = ({ canEdit }) => (
 
 const SalesPanel: React.FC = () => {
   const [confirmed, setConfirmed] = useState(false);
+
+  // Checkout State
+  const [customerName, setCustomerName] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
+  const [customerAddr, setCustomerAddr] = useState("");
+  const [qty, setQty] = useState("1");
+
+  // In a real app, this would be populated by the scanned QR code
+  // looking up the item from the 'inventory' collection
+  const mockItem = {
+    id: "mock-id-123",
+    name: "AG Hoodie 01",
+    brand: "AntiGravity Co.",
+    price: 3499,
+    commission: 0.30
+  };
+
+  const handleConfirmSale = async () => {
+    try {
+      const q = parseInt(qty) || 1;
+      const total = mockItem.price * q;
+      const comm = total * mockItem.commission;
+      const payout = total - comm;
+
+      await addDoc(collection(db, "sales"), {
+        item: mockItem.name,
+        itemId: mockItem.id,
+        brand: mockItem.brand,
+        customer: {
+          name: customerName,
+          phone: customerPhone,
+          address: customerAddr
+        },
+        quantity: q,
+        amount: total,
+        commission: comm,
+        payoutAmount: payout,
+        createdAt: new Date(),
+        status: "confirmed"
+      });
+
+      setConfirmed(true);
+      // Reset after 3 secs
+      setTimeout(() => {
+        setConfirmed(false);
+        setCustomerName("");
+        setCustomerPhone("");
+      }, 3000);
+    } catch (e) {
+      console.error(e);
+      alert("Failed to record sale");
+    }
+  };
 
   return (
     <section className="flex flex-col gap-4">
@@ -833,25 +1032,19 @@ const SalesPanel: React.FC = () => {
               </span>
             </div>
             <div className="w-full md:w-56 flex flex-col gap-2 text-xs">
-              <div className="rounded-2xl bg-slate-950/60 border border-slate-800/80 px-3 py-2">
-                <span className="text-[11px] uppercase tracking-[0.16em] text-slate-400">
-                  Matched item
+              <div className="rounded-2xl bg-slate-900/60 border border-emerald-500/30 px-3 py-2 bg-emerald-950/20">
+                <span className="text-[11px] uppercase tracking-[0.16em] text-emerald-400">
+                  Item Scanned
                 </span>
                 <div className="mt-1 flex flex-col gap-0.5">
-                  <span className="text-xs font-medium tracking-tight">AG Hoodie 01</span>
-                  <span className="text-[11px] text-slate-500">
-                    AntiGravity Co. · Size M
+                  <span className="text-xs font-medium tracking-tight text-white">{mockItem.name}</span>
+                  <span className="text-[11px] text-emerald-400/70">
+                    {mockItem.brand}
                   </span>
                   <div className="flex items-center justify-between gap-2 mt-1">
                     <span className="text-[11px] text-slate-500">Price</span>
-                    <Input
-                      defaultValue="₹3,499"
-                      className="h-7 w-24 bg-slate-950/60 border-slate-800/80 text-[11px] rounded-2xl text-right"
-                    />
+                    <span className="text-white font-mono">₹{mockItem.price}</span>
                   </div>
-                  <span className="text-[11px] text-slate-500">
-                    Stock: DEL 8 · BLR 5
-                  </span>
                 </div>
               </div>
             </div>
@@ -867,37 +1060,50 @@ const SalesPanel: React.FC = () => {
             <Input
               placeholder="Customer name"
               className="bg-slate-950/60 border-slate-800/80 text-xs rounded-2xl"
+              value={customerName}
+              onChange={e => setCustomerName(e.target.value)}
             />
             <Input
               placeholder="Phone number"
               className="bg-slate-950/60 border-slate-800/80 text-xs rounded-2xl"
+              value={customerPhone}
+              onChange={e => setCustomerPhone(e.target.value)}
             />
             <Input
               placeholder="Address (optional)"
               className="bg-slate-950/60 border-slate-800/80 text-xs rounded-2xl"
+              value={customerAddr}
+              onChange={e => setCustomerAddr(e.target.value)}
             />
-            <Input
-              placeholder="Quantity (default 1)"
-              className="bg-slate-950/60 border-slate-800/80 text-xs rounded-2xl"
-            />
+            <div className="flex items-center gap-2">
+              <span className="text-slate-400 whitespace-nowrap">Qty:</span>
+              <Input
+                placeholder="1"
+                type="number"
+                min="1"
+                className="bg-slate-950/60 border-slate-800/80 text-xs rounded-2xl"
+                value={qty}
+                onChange={e => setQty(e.target.value)}
+              />
+            </div>
           </div>
           <div className="mt-2 space-y-1 text-[11px] text-slate-300">
             <div className="flex items-center justify-between">
               <span>Base amount</span>
-              <span>₹3,499</span>
+              <span>₹{mockItem.price * (parseInt(qty) || 1)}</span>
             </div>
             <div className="flex items-center justify-between">
-              <span>Commission (30%)</span>
-              <span>₹1,050</span>
+              <span>Commission ({(mockItem.commission * 100).toFixed(0)}%)</span>
+              <span>₹{(mockItem.price * (parseInt(qty) || 1) * mockItem.commission).toFixed(0)}</span>
             </div>
             <div className="flex items-center justify-between font-medium text-emerald-300">
               <span>Payout to brand</span>
-              <span>₹2,449</span>
+              <span>₹{(mockItem.price * (parseInt(qty) || 1) * (1 - mockItem.commission)).toFixed(0)}</span>
             </div>
           </div>
           <Button
             className="mt-2 w-full bg-emerald-500 text-slate-950 hover:bg-emerald-400 text-xs"
-            onClick={() => setConfirmed(true)}
+            onClick={handleConfirmSale}
           >
             Confirm sale
           </Button>
@@ -911,30 +1117,11 @@ const SalesPanel: React.FC = () => {
       {confirmed && (
         <Card className="mt-2 border border-emerald-500/40 bg-emerald-500/5 rounded-2xl px-3 py-3 text-xs flex flex-col gap-2">
           <span className="text-[11px] uppercase tracking-[0.16em] text-emerald-300">
-            Review & send
+            Success
           </span>
           <p className="text-[11px] text-slate-200">
-            Sale saved to <code>sales</code>. Review details, then send a confirmation email to the brand.
+            Sale saved successfully to Firestore!
           </p>
-          <div className="flex items-center justify-between text-[11px] text-slate-200">
-            <span>AG Hoodie 01 · Qty 1 · AntiGravity Co.</span>
-            <span>₹3,499 · 30% commission</span>
-          </div>
-          <div className="flex items-center justify-end gap-2 mt-1">
-            <Button
-              size="sm"
-              variant="outline"
-              className="border-slate-700 bg-slate-900/60 text-[11px]"
-            >
-              Edit details
-            </Button>
-            <Button
-              size="sm"
-              className="bg-emerald-500 text-slate-950 hover:bg-emerald-400 text-[11px]"
-            >
-              Send email to brand
-            </Button>
-          </div>
         </Card>
       )}
     </section>
@@ -1083,13 +1270,13 @@ interface MobileNavItemProps {
 const MobileNavItem: React.FC<MobileNavItemProps> = ({ icon, label, active, onClick }) => (
   <button
     onClick={onClick}
-    className={`flex flex-col items-center gap-0.5 ${
-      active ? "text-slate-50" : "text-slate-400"
-    }`}
+    className={`flex flex-col items-center gap-0.5 ${active ? "text-slate-50" : "text-slate-400"
+      }`}
   >
     {icon}
     <span>{label}</span>
   </button>
 );
 
+// End of file
 export default StreetJunkiesConsole;
