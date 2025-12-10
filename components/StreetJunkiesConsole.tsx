@@ -703,6 +703,7 @@ const BrandsView: React.FC<BrandsViewProps> = ({ canEdit }) => {
   const [loading, setLoading] = useState(true);
 
   // Form State
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [newName, setNewName] = useState("");
   const [newEmail, setNewEmail] = useState("");
   const [newType, setNewType] = useState("Non-exclusive");
@@ -720,28 +721,54 @@ const BrandsView: React.FC<BrandsViewProps> = ({ canEdit }) => {
     return () => unsubscribe();
   }, []);
 
-  const handleAddBrand = async () => {
+  const handleEdit = (brand: any) => {
+    setEditingId(brand.id);
+    setNewName(brand.name);
+    setNewEmail(brand.email || "");
+    setNewType(brand.type || "Non-exclusive");
+    setNewComm(brand.commission || "");
+  };
+
+  const handleCancelEdit = () => {
+    setEditingId(null);
+    setNewName(""); setNewEmail(""); setNewType("Non-exclusive"); setNewComm("");
+  };
+
+  const handleSaveBrand = async () => {
     if (!newName || !newComm) return;
     setIsAdding(true);
     try {
-      await addDoc(collection(db, "brands"), {
-        name: newName,
-        email: newEmail,
-        type: newType,
-        commission: newComm,
-        createdAt: new Date(),
-      });
-      // Simulate Onboarding Email
-      if (newEmail) {
-        window.open(`mailto:${newEmail}?subject=Welcome to Street Junkies&body=Hi ${newName}, you are onboarded!`, '_blank');
+      if (editingId) {
+        // Update
+        await updateDoc(doc(db, "brands", editingId), {
+          name: newName,
+          email: newEmail,
+          type: newType,
+          commission: newComm,
+        });
+        setEditingId(null);
+      } else {
+        // Create
+        await addDoc(collection(db, "brands"), {
+          name: newName,
+          email: newEmail,
+          type: newType,
+          commission: newComm,
+          createdAt: new Date(),
+        });
+        // Simulate Onboarding Email
+        if (newEmail) {
+          window.open(`mailto:${newEmail}?subject=Welcome to Street Junkies&body=Hi ${newName}, you are onboarded!`, '_blank');
+        }
       }
       // Reset form
       setNewName("");
       setNewEmail("");
+      setNewType("Non-exclusive");
       setNewComm("");
     } catch (e) {
       console.error(e);
-      alert("Error adding brand");
+      alert("Error saving brand");
     }
     setIsAdding(false);
   };
@@ -789,6 +816,15 @@ const BrandsView: React.FC<BrandsViewProps> = ({ canEdit }) => {
                   <Button
                     size="sm"
                     variant="outline"
+                    className="h-7 px-2 text-[11px] border-border hover:bg-accent"
+                    onClick={() => handleEdit(brand)}
+                    disabled={!canEdit}
+                  >
+                    Edit
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
                     className="h-7 px-2 text-[11px] border-destructive/60 text-destructive hover:bg-destructive/10"
                     onClick={() => handleDeleteBrand(brand.id)}
                     disabled={!canEdit}
@@ -803,9 +839,11 @@ const BrandsView: React.FC<BrandsViewProps> = ({ canEdit }) => {
 
         {/* Brand form */}
         <Card className="border border-border bg-card rounded-2xl px-3 py-3 text-xs">
-          <span className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">New brand</span>
+          <span className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+            {editingId ? "Edit Brand" : "New brand"}
+          </span>
           <p className="mt-1 text-[11px] text-muted-foreground">
-            Add a partner to the <code>brands</code> collection.
+            {editingId ? "Update partner details." : "Add a partner to the brands collection."}
           </p>
           <div className="mt-3 space-y-2">
             <Input
@@ -821,12 +859,14 @@ const BrandsView: React.FC<BrandsViewProps> = ({ canEdit }) => {
               className="bg-secondary/50 border-input text-foreground placeholder:text-muted-foreground text-xs rounded-2xl"
             />
             <div className="grid grid-cols-2 gap-2">
-              <Input
-                placeholder="Type (Exclusive)"
+              <select
                 value={newType}
                 onChange={(e) => setNewType(e.target.value)}
-                className="bg-secondary/50 border-input text-foreground placeholder:text-muted-foreground text-xs rounded-2xl"
-              />
+                className="bg-secondary/50 border border-input rounded-2xl px-2 text-foreground h-9 text-[11px]"
+              >
+                <option value="Non-exclusive">Non-exclusive</option>
+                <option value="Exclusive">Exclusive</option>
+              </select>
               <Input
                 placeholder="Comm % (25)"
                 value={newComm}
@@ -834,14 +874,22 @@ const BrandsView: React.FC<BrandsViewProps> = ({ canEdit }) => {
                 className="bg-secondary/50 border-input text-foreground placeholder:text-muted-foreground text-xs rounded-2xl"
               />
             </div>
-            <Button
-              disabled={!canEdit || isAdding}
-              onClick={handleAddBrand}
-              size="sm"
-              className="w-full mt-2 bg-primary text-primary-foreground hover:bg-primary/90 text-xs disabled:opacity-50"
-            >
-              {isAdding ? "Saving..." : "Save brand"}
-            </Button>
+
+            <div className="flex gap-2 mt-2">
+              {editingId && (
+                <Button variant="outline" size="sm" onClick={handleCancelEdit} className="flex-1 text-xs">
+                  Cancel
+                </Button>
+              )}
+              <Button
+                disabled={!canEdit || isAdding}
+                onClick={handleSaveBrand}
+                size="sm"
+                className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90 text-xs disabled:opacity-50"
+              >
+                {isAdding ? "Saving..." : (editingId ? "Update" : "Save Brand")}
+              </Button>
+            </div>
           </div>
         </Card>
       </div>
@@ -863,21 +911,23 @@ const InventoryView: React.FC<InventoryViewProps> = ({ canEdit }) => {
   const [loading, setLoading] = useState(true);
 
   // Form
+  const [brandId, setBrandId] = useState("");
   const [name, setName] = useState("");
-  const [brandId, setBrandId] = useState(""); // ID of selected brand
   const [size, setSize] = useState("");
+  const [stock, setStock] = useState("1");
   const [price, setPrice] = useState("");
-  const [stock, setStock] = useState("0"); // Number as string
+
+  // Modal for QR
+  const [showQrModal, setShowQrModal] = useState(false);
+  const [createdItem, setCreatedItem] = useState<any>(null);
 
   React.useEffect(() => {
-    // Inventory
     const qInv = query(collection(db, "inventory"), orderBy("createdAt", "desc"));
     const unsubInv = onSnapshot(qInv, (snapshot) => {
       setItems(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       setLoading(false);
     });
 
-    // Brands (for dropdown)
     const qBrands = query(collection(db, "brands"), orderBy("name"));
     const unsubBrands = onSnapshot(qBrands, (snap) => {
       setBrands(snap.docs.map(d => ({ id: d.id, ...d.data() })));
@@ -887,25 +937,46 @@ const InventoryView: React.FC<InventoryViewProps> = ({ canEdit }) => {
   }, []);
 
   const handleAddItem = async () => {
-    if (!name || !price || !brandId) return;
+    if (!name || !brandId || !size) { alert("Missing fields"); return; }
     const selectedBrand = brands.find(b => b.id === brandId);
     try {
-      await addDoc(collection(db, "inventory"), {
+      const newItem = {
         name,
         brand: selectedBrand?.name || "Unknown",
         brandId: selectedBrand?.id,
         brandEmail: selectedBrand?.email || "",
-        brandComm: selectedBrand?.commission || 20, // Cache comm
+        brandComm: selectedBrand?.commission || 20,
         size,
-        price: parseFloat(price),
+        price: parseFloat(price) || 0, // Optional price
         stock: parseInt(stock) || 0,
         createdAt: new Date(),
         qrToken: crypto.randomUUID(),
-      });
-      setName(""); setBrandId(""); setSize(""); setPrice(""); setStock("0");
+      };
+      const docRef = await addDoc(collection(db, "inventory"), newItem);
+
+      // QR Success Logic
+      setCreatedItem({ id: docRef.id, ...newItem });
+      setShowQrModal(true);
+
+      // We DON'T clear fields yet, we wait for user decision in modal
     } catch (e) {
       console.error(e);
       alert("Error adding item");
+    }
+  };
+
+  const handleVariantLoop = (loop: boolean) => {
+    setShowQrModal(false);
+    if (loop) {
+      // Keep Brand and Name, reset Size/Qty/Price?
+      // User guideline: "Create another QR code for the same product name but with a different size or quantity"
+      setSize("");
+      setStock("1");
+      // Price might be same or different, keep it populated for convenience
+      // Keep Name and BrandId
+    } else {
+      // Clear All
+      setName(""); setBrandId(""); setSize(""); setPrice(""); setStock("1");
     }
   };
 
@@ -913,6 +984,39 @@ const InventoryView: React.FC<InventoryViewProps> = ({ canEdit }) => {
 
   return (
     <section className="flex flex-col gap-4">
+      {/* QR Generated Modal */}
+      {showQrModal && createdItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <Card className="w-full max-w-sm bg-card border border-border p-6 shadow-2xl flex flex-col items-center gap-4 animate-in fade-in zoom-in duration-300">
+            <div className="h-12 w-12 rounded-full bg-green-500/20 text-green-500 flex items-center justify-center">
+              <QrCode className="w-6 h-6" />
+            </div>
+            <h2 className="text-lg font-semibold text-foreground">Item Created!</h2>
+            <div className="border border-input rounded-xl p-3 bg-white w-full flex flex-col items-center gap-2">
+              <img
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${createdItem.id}`}
+                alt="QR Code"
+                className="w-32 h-32"
+              />
+              <span className="font-mono text-xs text-black">{createdItem.id}</span>
+            </div>
+
+            <p className="text-center text-xs text-muted-foreground px-2">
+              Do you want to create another QR code for <strong>{createdItem.name}</strong> with a different size/quantity?
+            </p>
+
+            <div className="grid grid-cols-2 gap-3 w-full">
+              <Button variant="outline" onClick={() => handleVariantLoop(false)} className="w-full">
+                No, I'm done
+              </Button>
+              <Button onClick={() => handleVariantLoop(true)} className="w-full bg-primary text-primary-foreground">
+                Yes, same product
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
         <div className="flex flex-col gap-0.5">
           <span className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Inventory</span>
@@ -931,23 +1035,42 @@ const InventoryView: React.FC<InventoryViewProps> = ({ canEdit }) => {
           </div>
 
           <div className="space-y-2 mb-4 p-3 bg-secondary/30 rounded-xl border border-dashed border-border">
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-              <Input placeholder="Item Name" value={name} onChange={e => setName(e.target.value)} className="bg-secondary/50 border-input md:col-span-2 h-8" />
-              <select
-                value={brandId}
-                onChange={e => setBrandId(e.target.value)}
-                className="bg-secondary/50 border border-input rounded-md px-2 text-foreground h-8 text-[11px]"
-              >
-                <option value="">Select Brand</option>
-                {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-              </select>
-              <Input placeholder="Size" value={size} onChange={e => setSize(e.target.value)} className="bg-secondary/50 border-input h-8" />
-              <Input placeholder="Price" value={price} onChange={e => setPrice(e.target.value)} type="number" className="bg-secondary/50 border-input h-8" />
-              <Input placeholder="Stock" value={stock} onChange={e => setStock(e.target.value)} type="number" className="bg-secondary/50 border-input h-8" />
+            <span className="text-[11px] font-semibold text-foreground">Create New Item</span>
+            <div className="grid grid-cols-2 md:grid-cols-6 gap-2 items-end">
+              <div className="md:col-span-2 flex flex-col gap-1">
+                <label className="text-[10px] text-muted-foreground">1. Brand</label>
+                <select
+                  value={brandId}
+                  onChange={e => setBrandId(e.target.value)}
+                  className="bg-secondary/50 border border-input rounded-lg px-2 text-foreground h-9 text-[11px] w-full"
+                >
+                  <option value="">Select Brand</option>
+                  {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                </select>
+              </div>
+              <div className="md:col-span-2 flex flex-col gap-1">
+                <label className="text-[10px] text-muted-foreground">2. Product Name</label>
+                <Input placeholder="T-Shirt, Hoodie..." value={name} onChange={e => setName(e.target.value)} className="bg-secondary/50 border-input h-9" />
+              </div>
+              <div className="md:col-span-1 flex flex-col gap-1">
+                <label className="text-[10px] text-muted-foreground">3. Size</label>
+                <Input placeholder="M, L, XL" value={size} onChange={e => setSize(e.target.value)} className="bg-secondary/50 border-input h-9" />
+              </div>
+              <div className="md:col-span-1 flex flex-col gap-1">
+                <label className="text-[10px] text-muted-foreground">4. Qty</label>
+                <Input placeholder="1" value={stock} onChange={e => setStock(e.target.value)} type="number" className="bg-secondary/50 border-input h-9" />
+              </div>
+              <div className="md:col-span-2 flex flex-col gap-1">
+                <label className="text-[10px] text-muted-foreground">5. Price (Optional)</label>
+                <Input placeholder="0.00" value={price} onChange={e => setPrice(e.target.value)} type="number" className="bg-secondary/50 border-input h-9" />
+              </div>
+              <div className="md:col-span-2">
+                <Button size="sm" onClick={handleAddItem} disabled={!canEdit} className="w-full h-9 bg-primary text-primary-foreground hover:bg-primary/90">
+                  <QrCode className="w-3.5 h-3.5 mr-2" />
+                  Generate QR
+                </Button>
+              </div>
             </div>
-            <Button size="sm" onClick={handleAddItem} disabled={!canEdit} className="w-full bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20">
-              + Add New SKU
-            </Button>
           </div>
 
           <div className="space-y-1.5 h-64 overflow-y-auto pr-1">
@@ -982,14 +1105,17 @@ const InventoryView: React.FC<InventoryViewProps> = ({ canEdit }) => {
         {/* QR preview panel */}
         <Card className="border border-border bg-card rounded-2xl px-3 py-3 text-xs flex flex-col gap-3 items-stretch">
           <span className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
-            QR token preview
+            Selected QR
           </span>
           {selectedQR ? (
             <>
               <div className="mt-1 flex flex-1 items-center justify-center">
                 <div className="h-32 w-32 bg-white p-2 rounded-xl flex items-center justify-center">
-                  {/* Placeholder for actual QR code gen */}
-                  <QrCode className="w-24 h-24 text-black" />
+                  <img
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${selectedQR}`}
+                    alt="QR Code"
+                    className="w-28 h-28"
+                  />
                 </div>
               </div>
               <div className="text-center space-y-1">
@@ -1013,14 +1139,10 @@ const InventoryView: React.FC<InventoryViewProps> = ({ canEdit }) => {
 // =========================
 
 const SalesPanel: React.FC = () => {
-  const [confirmed, setConfirmed] = useState(false);
-  const [lastSaleItem, setLastSaleItem] = useState<any>(null);
+  const [step, setStep] = useState<"search" | "details" | "review" | "success">("search");
 
-  // Inventory & Selection
+  // Inventory Data
   const [inventoryItems, setInventoryItems] = useState<any[]>([]);
-  const [selectedItemId, setSelectedItemId] = useState("");
-  const selectedItem = inventoryItems.find(i => i.id === selectedItemId);
-
   React.useEffect(() => {
     const q = query(collection(db, "inventory"));
     const unsub = onSnapshot(q, snap => {
@@ -1029,19 +1151,51 @@ const SalesPanel: React.FC = () => {
     return () => unsub();
   }, []);
 
-  // Checkout State
+  // Search Step
+  const [manualId, setManualId] = useState("");
+  const [selectedItem, setSelectedItem] = useState<any>(null);
+
+  const handleSearch = () => {
+    const found = inventoryItems.find(i => i.id === manualId);
+    if (found) {
+      setSelectedItem(found);
+      setSellingPrice(found.price?.toString() || "0");
+      setStep("details");
+    } else {
+      alert("Item ID not found");
+    }
+  };
+
+  const handleScanMock = (id: string) => {
+    const found = inventoryItems.find(i => i.id === id);
+    if (found) {
+      setSelectedItem(found);
+      setSellingPrice(found.price?.toString() || "0");
+      setStep("details");
+    }
+  };
+
+  // Details Step
+  const [sellingPrice, setSellingPrice] = useState("");
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [customerAddr, setCustomerAddr] = useState("");
   const [qty, setQty] = useState("1");
 
+  const goToReview = () => {
+    if (!customerName || !customerPhone) { alert("Please enter Customer Name and Number"); return; }
+    setStep("review");
+  };
+
+  // Final confirmation
   const handleConfirmSale = async () => {
-    if (!selectedItem) { alert("Select an item first"); return; }
+    if (!selectedItem) return;
     try {
       const q = parseInt(qty) || 1;
-      // Real Item Data
+      const finalPrice = parseFloat(sellingPrice) || 0;
+      const total = finalPrice * q;
+
       const commissionRate = (selectedItem.brandComm || 20) / 100;
-      const total = (selectedItem.price || 0) * q;
       const comm = total * commissionRate;
       const payout = total - comm;
 
@@ -1049,13 +1203,15 @@ const SalesPanel: React.FC = () => {
         item: selectedItem.name,
         itemId: selectedItem.id,
         brand: selectedItem.brand,
+        size: selectedItem.size || "S", // Ensure size is saved
         customer: {
           name: customerName,
           phone: customerPhone,
           address: customerAddr
         },
         quantity: q,
-        amount: total,
+        amount: total, // Total revenue
+        unitPrice: finalPrice,
         commission: comm,
         payoutAmount: payout,
         createdAt: new Date(),
@@ -1067,164 +1223,171 @@ const SalesPanel: React.FC = () => {
         stock: increment(-q)
       });
 
-      setLastSaleItem({ ...selectedItem, total, customerName });
-      setConfirmed(true);
-
-      // Reset
-      setCustomerName(""); setCustomerPhone(""); setSelectedItemId("");
-      setTimeout(() => setConfirmed(false), 5000);
+      setStep("success");
     } catch (e) {
       console.error(e);
       alert("Failed to record sale");
     }
   };
 
+  const resetFlow = () => {
+    setManualId(""); setSelectedItem(null); setSellingPrice("");
+    setCustomerName(""); setCustomerPhone(""); setCustomerAddr(""); setQty("1");
+    setStep("search");
+  };
+
   return (
-    <section className="flex flex-col gap-4">
+    <section className="flex flex-col gap-4 max-w-2xl mx-auto w-full">
       <div className="flex items-center justify-between">
         <div className="flex flex-col gap-0.5">
-          <span className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
-            Sales panel
-          </span>
-          <span className="text-xs text-muted-foreground">
-            Scan QR → pull inventory → capture customer → confirm sale
-          </span>
+          <span className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Sales panel</span>
+          <span className="text-xs text-muted-foreground">New Transaction</span>
         </div>
-        <Badge className="bg-primary/10 text-primary border-primary/20 text-[10px] uppercase tracking-[0.16em]">
-          Mobile first
-        </Badge>
+        <Badge variant={step === "search" ? "outline" : "default"} className="text-[10px]">{step.toUpperCase()}</Badge>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Scan / camera area */}
-        <Card className="lg:col-span-2 border border-border bg-card rounded-2xl px-3 py-3 flex flex-col gap-3">
-          <span className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
-            1 · Scan product tag
-          </span>
-          <div className="mt-1 flex flex-col md:flex-row gap-3">
-            <div className="flex-1 flex flex-col items-center justify-center rounded-2xl bg-secondary/50 border border-dashed border-border px-4 py-6 text-xs text-muted-foreground">
-              <Camera className="w-8 h-8 mb-2 text-muted-foreground/70" />
-              <span>Simulate Scan: Select from Inventory</span>
+      <Card className="border border-border bg-card p-4 rounded-3xl shadow-sm">
+        {step === "search" && (
+          <div className="space-y-6">
+            <div className="text-center space-y-2">
+              <h2 className="text-lg font-semibold tracking-tight">Scan Product</h2>
+              <p className="text-xs text-muted-foreground">Scan the QR code on the tag or enter ID manually.</p>
+            </div>
+
+            {/* Mock Scanner */}
+            <div className="border-2 border-dashed border-border rounded-2xl p-6 flex flex-col items-center justify-center gap-4 bg-secondary/20">
+              <Camera className="w-8 h-8 text-muted-foreground" />
+              <div className="text-xs text-muted-foreground">Camera inactive (Mock Mode)</div>
               <select
-                className="mt-2 w-full max-w-xs bg-card border border-input rounded p-2 text-foreground"
-                value={selectedItemId}
-                onChange={e => setSelectedItemId(e.target.value)}
+                className="p-2 rounded bg-card border border-input text-xs"
+                onChange={(e) => handleScanMock(e.target.value)}
               >
-                <option value="">-- Scan / Select Item --</option>
+                <option value="">[Simulate Scan - Select Item]</option>
                 {inventoryItems.map(i => (
-                  <option key={i.id} value={i.id}>{i.name} ({i.stock} in stock)</option>
+                  <option key={i.id} value={i.id}>{i.name} - {i.size} (ID: {i.id.slice(0, 4)}...)</option>
                 ))}
               </select>
             </div>
 
-            {/* Item Preview */}
-            <div className="w-full md:w-56 flex flex-col gap-2 text-xs">
-              {selectedItem ? (
-                <div className="rounded-2xl bg-secondary/80 border border-primary/30 px-3 py-2">
-                  <span className="text-[11px] uppercase tracking-[0.16em] text-primary">
-                    Item Scanned
-                  </span>
-                  <div className="mt-1 flex flex-col gap-0.5">
-                    <span className="text-xs font-medium tracking-tight text-foreground">{selectedItem.name}</span>
-                    <span className="text-[11px] text-muted-foreground">
-                      {selectedItem.brand}
-                    </span>
-                    <div className="flex items-center justify-between gap-2 mt-1">
-                      <span className="text-[11px] text-muted-foreground">Price</span>
-                      <span className="text-foreground font-mono">₹{selectedItem.price}</span>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="h-full rounded-2xl bg-secondary/30 border border-border px-3 py-2 flex items-center justify-center text-muted-foreground italic">
-                  No item selected
-                </div>
-              )}
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-border" /></div>
+              <div className="relative flex justify-center text-xs uppercase"><span className="bg-card px-2 text-muted-foreground">Or</span></div>
             </div>
-          </div>
-        </Card>
 
-        {/* Customer + totals */}
-        <Card className="border border-border bg-card rounded-2xl px-3 py-3 text-xs flex flex-col gap-3">
-          <span className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
-            2 · Customer & checkout
-          </span>
-          <div className="space-y-2">
-            <Input
-              placeholder="Customer name"
-              className="bg-secondary/50 border-input text-xs rounded-2xl"
-              value={customerName}
-              onChange={e => setCustomerName(e.target.value)}
-            />
-            <Input
-              placeholder="Phone number"
-              className="bg-secondary/50 border-input text-xs rounded-2xl"
-              value={customerPhone}
-              onChange={e => setCustomerPhone(e.target.value)}
-            />
-            <Input
-              placeholder="Address (optional)"
-              className="bg-secondary/50 border-input text-xs rounded-2xl"
-              value={customerAddr}
-              onChange={e => setCustomerAddr(e.target.value)}
-            />
-            <div className="flex items-center gap-2">
-              <span className="text-muted-foreground whitespace-nowrap">Qty:</span>
+            <div className="flex gap-2">
               <Input
-                placeholder="1"
-                type="number"
-                min="1"
-                className="bg-secondary/50 border-input text-xs rounded-2xl"
-                value={qty}
-                onChange={e => setQty(e.target.value)}
+                placeholder="Enter Product ID Manually"
+                value={manualId}
+                onChange={e => setManualId(e.target.value)}
+                className="bg-secondary/50 text-center font-mono"
               />
+              <Button onClick={handleSearch}>Go</Button>
             </div>
           </div>
+        )}
 
-          {selectedItem && (
-            <div className="mt-2 space-y-1 text-[11px] text-foreground">
-              <div className="flex items-center justify-between">
-                <span>Base amount</span>
-                <span>₹{(selectedItem.price || 0) * (parseInt(qty) || 1)}</span>
+        {step === "details" && selectedItem && (
+          <div className="space-y-4 animate-in slide-in-from-right-4 duration-300">
+            <div className="flex items-center justify-between border-b border-border pb-2">
+              <h3 className="font-semibold">{selectedItem.name}</h3>
+              <Badge variant="secondary" className="font-mono">{selectedItem.size}</Badge>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 text-xs">
+              <div>
+                <label className="text-muted-foreground">Brand</label>
+                <p className="font-medium">{selectedItem.brand}</p>
               </div>
-              <div className="flex items-center justify-between font-medium text-primary">
-                <span>Payout to brand</span>
-                <span>₹{((selectedItem.price || 0) * (parseInt(qty) || 1) * (1 - (selectedItem.brandComm || 20) / 100)).toFixed(0)}</span>
+              <div>
+                <label className="text-muted-foreground">Original Price</label>
+                <p className="font-medium">₹{selectedItem.price}</p>
               </div>
             </div>
-          )}
 
-          <Button
-            className="mt-2 w-full bg-primary text-primary-foreground hover:bg-primary/90 text-xs"
-            onClick={handleConfirmSale}
-            disabled={!selectedItem}
-          >
-            Confirm sale
-          </Button>
-        </Card>
-      </div>
+            <div className="space-y-3 pt-2">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[10px] uppercase tracking-wider text-muted-foreground">Selling Price (₹)</label>
+                  <Input value={sellingPrice} onChange={e => setSellingPrice(e.target.value)} type="number" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] uppercase tracking-wider text-muted-foreground">Qty</label>
+                  <Input value={qty} onChange={e => setQty(e.target.value)} type="number" />
+                </div>
+              </div>
 
-      {confirmed && (
-        <Card className="mt-2 border border-primary/40 bg-primary/5 rounded-2xl px-3 py-3 text-xs flex flex-col gap-2">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] uppercase tracking-[0.16em] text-primary">
-              Success
-            </span>
-            <Button size="sm" variant="outline" className="h-6 text-[10px]" onClick={() => {
-              if (lastSaleItem?.brandEmail) {
-                window.open(`mailto:${lastSaleItem.brandEmail}?subject=Sale Alert: ${lastSaleItem.name}&body=New sale recorded for ${lastSaleItem.name}. Total: ${lastSaleItem.total}. Customer: ${lastSaleItem.customerName}`, '_blank')
-              } else {
-                alert("No email on file for this brand.");
-              }
-            }}>
-              Send Mail to Brand
-            </Button>
+              <div className="space-y-1">
+                <label className="text-[10px] uppercase tracking-wider text-muted-foreground">Customer Name</label>
+                <Input value={customerName} onChange={e => setCustomerName(e.target.value)} placeholder="John Doe" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] uppercase tracking-wider text-muted-foreground">Customer Number</label>
+                <Input value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} placeholder="+91..." />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] uppercase tracking-wider text-muted-foreground">Address (Optional)</label>
+                <Input value={customerAddr} onChange={e => setCustomerAddr(e.target.value)} placeholder="City, Area..." />
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <Button variant="outline" className="flex-1" onClick={() => setStep("search")}>Back</Button>
+              <Button className="flex-1" onClick={goToReview}>Next: Review</Button>
+            </div>
           </div>
-          <p className="text-[11px] text-foreground">
-            Sale saved successfully! Stock updated.
-          </p>
-        </Card>
-      )}
+        )}
+
+        {step === "review" && selectedItem && (
+          <div className="space-y-5 animate-in slide-in-from-right-4 duration-300">
+            <h3 className="text-center font-semibold text-lg">Final Review</h3>
+
+            <div className="bg-secondary/30 rounded-xl p-4 space-y-3 text-sm">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Item:</span>
+                <span className="font-medium">{selectedItem.name} ({selectedItem.size})</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Brand:</span>
+                <span className="font-medium">{selectedItem.brand}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Price/Unit:</span>
+                <span className="font-medium">₹{sellingPrice}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Quantity:</span>
+                <span className="font-medium">{qty}</span>
+              </div>
+              <div className="border-t border-border pt-2 flex justify-between font-bold text-foreground">
+                <span>Total:</span>
+                <span>₹{(parseFloat(sellingPrice || "0") * parseInt(qty || "1")).toFixed(2)}</span>
+              </div>
+            </div>
+
+            <div className="bg-secondary/30 rounded-xl p-4 space-y-1 text-xs">
+              <p><span className="text-muted-foreground">Customer:</span> {customerName}</p>
+              <p><span className="text-muted-foreground">Phone:</span> {customerPhone}</p>
+              {customerAddr && <p><span className="text-muted-foreground">Address:</span> {customerAddr}</p>}
+            </div>
+
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={() => setStep("details")}>Edit</Button>
+              <Button className="flex-1 bg-green-600 hover:bg-green-700 text-white" onClick={handleConfirmSale}>Confirm Sale</Button>
+            </div>
+          </div>
+        )}
+
+        {step === "success" && (
+          <div className="text-center space-y-4 py-8 animate-in zoom-in duration-300">
+            <div className="inline-flex h-16 w-16 items-center justify-center rounded-full bg-green-500/10 text-green-500">
+              <DollarSign className="w-8 h-8" />
+            </div>
+            <h2 className="text-2xl font-bold text-foreground">Sale Recorded!</h2>
+            <p className="text-muted-foreground text-sm">Inventory has been updated.</p>
+            <Button onClick={resetFlow} className="w-full">Start New Sale</Button>
+          </div>
+        )}
+      </Card>
     </section>
   );
 };
@@ -1237,6 +1400,11 @@ const InvoicesView: React.FC = () => {
   const [sales, setSales] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Filters
+  const [filterDate, setFilterDate] = useState("");
+  const [filterMonth, setFilterMonth] = useState("");
+  const [filterBrand, setFilterBrand] = useState("");
+
   React.useEffect(() => {
     const q = query(collection(db, "sales"), orderBy("createdAt", "desc"));
     const unsub = onSnapshot(q, snap => {
@@ -1246,31 +1414,69 @@ const InvoicesView: React.FC = () => {
     return () => unsub();
   }, []);
 
-  // Aggregate by Brand
+  // Filter Logic
+  const filteredSales = React.useMemo(() => {
+    return sales.filter(s => {
+      const date = s.createdAt?.toDate ? s.createdAt.toDate() : new Date(s.createdAt);
+
+      // Date Filter (YYYY-MM-DD)
+      if (filterDate) {
+        const dStr = date.toISOString().slice(0, 10);
+        if (dStr !== filterDate) return false;
+      }
+
+      // Month Filter (YYYY-MM)
+      if (filterMonth) {
+        const mStr = date.toISOString().slice(0, 7);
+        if (mStr !== filterMonth) return false;
+      }
+
+      // Brand Search
+      if (filterBrand) {
+        if (!s.brand?.toLowerCase().includes(filterBrand.toLowerCase())) return false;
+      }
+
+      return true;
+    });
+  }, [sales, filterDate, filterMonth, filterBrand]);
+
+  // Aggregate by Brand (from Filtered Data)
   const brandStatements = React.useMemo(() => {
-    const stats: Record<string, { count: number, payout: number, email: string }> = {};
-    sales.forEach(s => {
+    const stats: Record<string, { count: number, payout: number }> = {};
+    filteredSales.forEach(s => {
       if (!stats[s.brand]) {
-        stats[s.brand] = { count: 0, payout: 0, email: s.brandEmail || "" };
-        // Note: sales might not have brandEmail if it wasn't saved. 
-        // In a real app we'd join with 'brands' collection. For now we use what we have.
+        stats[s.brand] = { count: 0, payout: 0 };
       }
       stats[s.brand].count += 1;
       stats[s.brand].payout += (s.payoutAmount || 0);
     });
     return Object.entries(stats).map(([brand, data]) => ({ brand, ...data }));
-  }, [sales]);
+  }, [filteredSales]);
 
-  const handleDownloadCSV = (brandName: string, amount: number) => {
-    const csv = "Date,Item,Amount,Payout\n" + sales
-      .filter(s => s.brand === brandName)
-      .map(s => `${new Date(s.createdAt?.seconds * 1000).toLocaleDateString()}, ${s.item}, ${s.amount}, ${s.payoutAmount}`)
-      .join("\n");
+  // Updated CSV Logic
+  const handleExportAll = () => {
+    const header = "Date,Customer Name,Customer Number,Customer Address,Brand Name,Product Name,Size,Quantity,Price,Commission Earned\n";
+    const rows = filteredSales.map(s => {
+      const date = s.createdAt?.toDate ? s.createdAt.toDate().toLocaleDateString() : "";
+      // Clean strings to avoid CSV breakage
+      const cName = (s.customer?.name || "-").replace(/,/g, " ");
+      const cPhone = (s.customer?.phone || "-").replace(/,/g, " ");
+      const cAddr = (s.customer?.address || "-").replace(/,/g, " ");
+      const bName = (s.brand || "-").replace(/,/g, " ");
+      const pName = (s.item || "Item").replace(/,/g, " ");
+      const size = (s.size || "-");
+      const qty = (s.quantity || 1);
+      const price = (s.unitPrice || s.amount / qty || 0);
+      const comm = (s.commission || 0);
 
-    const encodedUri = encodeURI("data:text/csv;charset=utf-8," + csv);
+      return `${date},${cName},${cPhone},${cAddr},${bName},${pName},${size},${qty},${price},${comm}`;
+    }).join("\n");
+
+    const csvContent = header + rows;
+    const encodedUri = encodeURI("data:text/csv;charset=utf-8," + csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `Statement_${brandName}.csv`);
+    link.setAttribute("download", `Invoices_${new Date().toISOString().slice(0, 10)}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -1282,58 +1488,55 @@ const InvoicesView: React.FC = () => {
         <div className="flex flex-col gap-0.5">
           <span className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Invoices</span>
           <span className="text-xs text-muted-foreground">
-            Review payouts and send brand statements
+            Reconciliation & Payouts ({filteredSales.length} records)
           </span>
         </div>
-        <div className="flex items-center gap-2 text-[11px]">
-          <Button variant="outline" size="sm" className="h-8 text-xs">Filter Month</Button>
+        <div className="flex gap-2">
+          <Button size="sm" onClick={handleExportAll} className="bg-primary text-primary-foreground text-xs">
+            Export Excel
+          </Button>
         </div>
       </div>
 
-      <Card className="border border-border bg-card rounded-2xl px-3 py-3 text-xs flex flex-col gap-3">
-        <span className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Generated Statements</span>
-        <div className="space-y-2">
-          {loading && <div className="text-muted-foreground">Loading sales...</div>}
-          {!loading && brandStatements.length === 0 && <div className="text-muted-foreground">No sales recorded yet.</div>}
-
-          {brandStatements.map((stat) => (
-            <div
-              key={stat.brand}
-              className="flex items-center justify-between rounded-xl bg-secondary/50 px-3 py-2"
-            >
-              <div className="flex flex-col">
-                <span className="font-medium tracking-tight text-foreground">{stat.brand}</span>
-                <span className="text-[11px] text-muted-foreground">{stat.count} orders</span>
-              </div>
-              <div className="flex flex-col items-end gap-1">
-                <span className="text-[11px] text-foreground font-semibold">₹{stat.payout.toLocaleString()}</span>
-                <div className="flex items-center gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-7 px-2 text-[11px] border-border hover:bg-accent"
-                    onClick={() => handleDownloadCSV(stat.brand, stat.payout)}
-                  >
-                    Download CSV
-                  </Button>
-                  <Button
-                    size="sm"
-                    className="h-7 px-2 text-[11px] bg-primary text-primary-foreground hover:bg-primary/90"
-                    onClick={() => {
-                      window.open(`mailto:?subject=Payout Statement for ${stat.brand}&body=High ${stat.brand}, your total payout is ₹${stat.payout}. Please find attached CSV.`, '_blank');
-                    }}
-                  >
-                    Mail Brand
-                  </Button>
-                </div>
-              </div>
-            </div>
-          ))}
+      {/* Filters Bar */}
+      <Card className="border border-border bg-card p-3 rounded-2xl flex flex-wrap gap-4 items-end text-xs">
+        <div className="flex flex-col gap-1">
+          <label className="text-[10px] text-muted-foreground uppercase">Filter Date</label>
+          <input type="date" value={filterDate} onChange={e => { setFilterDate(e.target.value); setFilterMonth(""); }} className="bg-secondary/50 border border-input rounded p-1 h-8" />
         </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-[10px] text-muted-foreground uppercase">Filter Month</label>
+          <input type="month" value={filterMonth} onChange={e => { setFilterMonth(e.target.value); setFilterDate(""); }} className="bg-secondary/50 border border-input rounded p-1 h-8" />
+        </div>
+        <div className="flex flex-col gap-1 flex-1 min-w-[150px]">
+          <label className="text-[10px] text-muted-foreground uppercase">Search Brand</label>
+          <Input placeholder="Brand Name..." value={filterBrand} onChange={e => setFilterBrand(e.target.value)} className="h-8 bg-secondary/50 text-xs" />
+        </div>
+        <Button variant="ghost" size="sm" onClick={() => { setFilterDate(""); setFilterMonth(""); setFilterBrand(""); }} className="h-8 text-muted-foreground hover:text-foreground">
+          Clear
+        </Button>
       </Card>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {brandStatements.length === 0 && <div className="text-muted-foreground text-xs p-4 col-span-2 text-center">No records match filters.</div>}
+
+        {brandStatements.map((stat) => (
+          <Card key={stat.brand} className="border border-border bg-card rounded-2xl px-3 py-3 flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <span className="font-medium tracking-tight text-foreground">{stat.brand}</span>
+              <span className="text-[11px] text-muted-foreground">{stat.count} orders</span>
+            </div>
+            <div className="flex items-baseline gap-1">
+              <span className="text-xl font-semibold tracking-tight text-primary">₹{stat.payout.toLocaleString()}</span>
+              <span className="text-[11px] text-muted-foreground">payable</span>
+            </div>
+          </Card>
+        ))}
+      </div>
     </section>
   );
 };
+
 
 // =========================
 // Mobile nav
