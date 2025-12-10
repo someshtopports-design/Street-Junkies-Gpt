@@ -97,6 +97,22 @@ const StreetJunkiesConsole: React.FC = () => {
     }
   };
 
+  // Safety check for Firebase Configuration
+  if (!auth || !db) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-950 text-white flex-col gap-4 p-4 text-center">
+        <h1 className="text-xl font-bold text-red-500">Configuration Error</h1>
+        <p className="text-sm text-slate-400">
+          Firebase is not initialized. Please ensure your Vercel Environment Variables are set correctly.
+        </p>
+        <div className="text-xs text-slate-600 bg-slate-900 p-4 rounded-xl text-left font-mono">
+          NEXT_PUBLIC_FIREBASE_API_KEY=...<br />
+          ...and other firebase config keys.
+        </div>
+      </div>
+    );
+  }
+
   const handleLogout = async () => {
     await signOut(auth);
     setRole(null);
