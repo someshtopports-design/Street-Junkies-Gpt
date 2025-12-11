@@ -65,25 +65,20 @@ export const InvoicesView: React.FC = () => {
         a.click();
     };
 
-    const handleEmailInvoice = (brand: string, data: any) => {
-        const invoiceData = {
-            invoice: {
-                id: crypto.randomUUID(),
-                meta: { type: "invoice", status: "APPROVED", date: filterMonth ? filterMonth : "ALL TIME", currency: "INR", currencySymbol: "₹" },
-                branding: { companyName: "STREET JUNKIES INDIA", primaryColor: "#B40000" },
-                seller: { name: "STREET JUNKIES INDIA", email: "streetjunkiesindia@gmail.com" },
-                buyer: { name: brand },
-                summary: {
-                    rows: [
-                        { label: "Total", value: data.total },
-                        { label: "Commission", value: data.comm },
-                        { label: "Payout", value: data.payout }
-                    ]
-                }
-            }
-        };
-        console.log("Sending Monthly Invoice Email:", invoiceData);
-        alert(`Monthly Invoice sent to ${brand}!`);
+    const handleEmailInvoice = async (brand: string, data: any) => {
+        try {
+            const { sendInvoiceEmail } = await import("@/lib/emailService");
+            await sendInvoiceEmail({
+                to_name: brand,
+                to_email: "streetjunkiesindia@gmail.com", // Replace with real brand email
+                message: `Monthly Invoice Report: ${filterMonth || "All Time"}`,
+                invoice_details: `Total Sales: ₹${data.total}\nCommission: ₹${data.comm}\nNet Payout: ₹${data.payout}`
+            });
+            alert(`Monthly Invoice sent to ${brand}!`);
+        } catch (e) {
+            console.error(e);
+            alert("Failed to send email. Check configuration.");
+        }
     };
 
     return (

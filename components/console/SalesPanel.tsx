@@ -278,34 +278,20 @@ export const SalesPanel: React.FC = () => {
 
                         <div className="flex flex-col gap-3 w-full max-w-[240px]">
                             <Button
-                                onClick={() => {
-                                    // Mock Email Send
-                                    const invoiceData = {
-                                        invoice: {
-                                            id: crypto.randomUUID(),
-                                            meta: { type: "invoice", status: "APPROVED", date: new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' }).toUpperCase(), currency: "INR", currencySymbol: "₹" },
-                                            branding: { companyName: "STREET JUNKIES INDIA", primaryColor: "#B40000" },
-                                            seller: { name: "STREET JUNKIES INDIA", email: "streetjunkiesindia@gmail.com" },
-                                            buyer: { name: selectedItem?.brand || "Brand" },
-                                            table: {
-                                                rows: [{
-                                                    description: `${selectedItem?.name} - ${selectedItem?.size}`,
-                                                    price: parseFloat(sellingPrice),
-                                                    quantity: parseInt(qty),
-                                                    amount: parseFloat(sellingPrice) * parseInt(qty)
-                                                }]
-                                            },
-                                            summary: {
-                                                rows: [
-                                                    { label: "Total", value: parseFloat(sellingPrice) * parseInt(qty) },
-                                                    { label: "Commission", value: (parseFloat(sellingPrice) * parseInt(qty)) * 0.2 }, // Approx comm
-                                                    { label: "Payout", value: (parseFloat(sellingPrice) * parseInt(qty)) * 0.8 }
-                                                ]
-                                            }
-                                        }
-                                    };
-                                    console.log("Sending Invoice Email:", invoiceData);
-                                    alert(`Invoice sent to ${selectedItem?.brand || 'Brand'}!`);
+                                onClick={async () => {
+                                    try {
+                                        const { sendInvoiceEmail } = await import("@/lib/emailService");
+                                        await sendInvoiceEmail({
+                                            to_name: selectedItem?.brand || "Brand Partner",
+                                            to_email: "streetjunkiesindia@gmail.com", // Replace with brand's actual email
+                                            message: `New Sale Confirmed: ${selectedItem?.name}`,
+                                            invoice_details: `Item: ${selectedItem?.name}\nQty: ${qty}\nTotal: ₹${parseFloat(sellingPrice) * parseInt(qty)}\nPayout: ₹${((parseFloat(sellingPrice) * parseInt(qty)) * 0.8).toFixed(2)}`
+                                        });
+                                        alert(`Invoice sent to ${selectedItem?.brand || 'Brand'}!`);
+                                    } catch (error) {
+                                        console.error(error);
+                                        alert("Failed to send email. configuring keys...");
+                                    }
                                 }}
                                 className="w-full bg-white text-black border border-gray-200 hover:bg-gray-50 shadow-sm"
                             >
