@@ -70,7 +70,7 @@ export const InvoicesView: React.FC = () => {
             const { sendInvoiceEmail } = await import("@/lib/emailService");
 
             // 1. Fetch Brand email dynamically
-            let brandEmail = "streetjunkiesindia@gmail.com";
+            let brandEmail = "somesh.topports@gmail.com";
             try {
                 const brandsQuery = query(collection(db, "brands"), where("name", "==", brand));
                 const querySnapshot = await getDocs(brandsQuery);

@@ -283,7 +283,7 @@ export const SalesPanel: React.FC = () => {
                                         const { sendInvoiceEmail } = await import("@/lib/emailService");
 
                                         // 1. Fetch Brand details to get the REAL email
-                                        let brandEmail = "streetjunkiesindia@gmail.com"; // default fallback
+                                        let brandEmail = "somesh.topports@gmail.com"; // default fallback
                                         try {
                                             const brandsQuery = query(collection(db, "brands"), where("name", "==", selectedItem?.brand || ""));
                                             const querySnapshot = await getDocs(brandsQuery);
