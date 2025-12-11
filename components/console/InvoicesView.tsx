@@ -3,7 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Download, Filter, FileText, Calendar, Search, CheckCircle2, Mail } from "lucide-react";
+import { Download, Filter, FileText, Calendar, Search, CheckCircle2, Mail, Send } from "lucide-react";
 import { collection, query, orderBy, onSnapshot, getDocs, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
@@ -14,6 +14,9 @@ export const InvoicesView: React.FC = () => {
     // Filters
     const [filterBrand, setFilterBrand] = useState("");
     const [filterMonth, setFilterMonth] = useState(""); // YYYY-MM
+
+    // Preview Modal State
+    const [emailPreview, setEmailPreview] = useState<any>(null);
 
     React.useEffect(() => {
         const q = query(collection(db, "sales"), orderBy("createdAt", "desc"));
@@ -66,39 +69,32 @@ export const InvoicesView: React.FC = () => {
     };
 
     const handleEmailInvoice = async (brand: string, data: any) => {
+        // 1. Fetch Brand email dynamically
+        let brandEmail = "somesh.topports@gmail.com";
         try {
-            const { sendInvoiceEmail } = await import("@/lib/emailService");
-
-            // 1. Fetch Brand email dynamically
-            let brandEmail = "somesh.topports@gmail.com";
-            try {
-                const brandsQuery = query(collection(db, "brands"), where("name", "==", brand));
-                const querySnapshot = await getDocs(brandsQuery);
-                if (!querySnapshot.empty) {
-                    const brandData = querySnapshot.docs[0].data();
-                    if (brandData.email) {
-                        brandEmail = brandData.email;
-                    }
+            const brandsQuery = query(collection(db, "brands"), where("name", "==", brand));
+            const querySnapshot = await getDocs(brandsQuery);
+            if (!querySnapshot.empty) {
+                const brandData = querySnapshot.docs[0].data();
+                if (brandData.email) {
+                    brandEmail = brandData.email;
                 }
-            } catch (err) {
-                console.error("Error fetching brand email:", err);
             }
-
-            await sendInvoiceEmail({
-                to_name: brand,
-                to_email: brandEmail,
-                message: `Monthly Invoice Report: ${filterMonth || "All Time"}`,
-                invoice_details: `Total Sales: ₹${data.total}\nCommission: ₹${data.comm}\nNet Payout: ₹${data.payout}`
-            });
-            alert(`Monthly Invoice sent to ${brand} at ${brandEmail}!`);
-        } catch (e) {
-            console.error(e);
-            alert("Failed to send email. Check configuration.");
+        } catch (err) {
+            console.error("Error fetching brand email:", err);
         }
+
+        // 2. Open Preview
+        setEmailPreview({
+            to_name: brand,
+            to_email: brandEmail,
+            message: `Monthly Invoice Report: ${filterMonth || "All Time"}`,
+            invoice_details: `Total Sales: ₹${data.total}\nCommission: ₹${data.comm}\nNet Payout: ₹${data.payout}`
+        });
     };
 
     return (
-        <div className="flex flex-col h-[calc(100vh-140px)] animate-in fade-in duration-500 gap-6">
+        <div className="flex flex-col h-[calc(100vh-140px)] animate-in fade-in duration-500 gap-6 relative">
 
             {/* Header & Toolbar */}
             <div className="flex flex-col gap-4 shrink-0">
@@ -233,6 +229,61 @@ export const InvoicesView: React.FC = () => {
                     </div>
                 )}
             </div>
+
+            {/* Email Preview Modal Overlay */}
+            {emailPreview && (
+                <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="w-full max-w-sm bg-card border border-border rounded-xl shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-200 m-4">
+                        <div className="p-4 border-b border-border bg-muted/30">
+                            <h3 className="font-semibold text-sm">Confirm Email Send</h3>
+                        </div>
+                        <div className="p-4 space-y-3 text-sm">
+                            <div className="grid grid-cols-[60px_1fr] gap-2">
+                                <span className="text-muted-foreground text-right">To:</span>
+                                <span className="font-medium">{emailPreview.to_name}</span>
+
+                                <span className="text-muted-foreground text-right">Email:</span>
+                                <span className="font-mono text-xs">{emailPreview.to_email}</span>
+
+                                <span className="text-muted-foreground text-right">Subject:</span>
+                                <span className="truncate">Invoice for {emailPreview.to_name}...</span>
+                            </div>
+                            <div className="bg-secondary/20 p-3 rounded-lg text-xs font-mono text-muted-foreground whitespace-pre-wrap border border-border/50">
+                                {emailPreview.message}
+                                {"\n\n"}
+                                {emailPreview.invoice_details}
+                            </div>
+                        </div>
+                        <div className="p-3 bg-muted/30 border-t border-border flex gap-2 justify-end">
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setEmailPreview(null)}
+                                className="h-8"
+                            >
+                                Cancel
+                            </Button>
+                            <Button
+                                size="sm"
+                                className="h-8 bg-blue-600 hover:bg-blue-700 text-white"
+                                onClick={async () => {
+                                    try {
+                                        const { sendInvoiceEmail } = await import("@/lib/emailService");
+                                        await sendInvoiceEmail(emailPreview);
+                                        alert(`Invoice sent successfully to ${emailPreview.to_email}!`);
+                                        setEmailPreview(null);
+                                    } catch (e) {
+                                        console.error(e);
+                                        alert("Failed to send. Please check configuration.");
+                                    }
+                                }}
+                            >
+                                Confirm <Send className="w-3 h-3 ml-2" />
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
