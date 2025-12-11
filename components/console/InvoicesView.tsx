@@ -3,7 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Download, Filter, FileText, Calendar, Search, ArrowUpRight, CheckCircle2 } from "lucide-react";
+import { Download, Filter, FileText, Calendar, Search, CheckCircle2, Mail } from "lucide-react";
 import { collection, query, orderBy, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
@@ -13,7 +13,7 @@ export const InvoicesView: React.FC = () => {
 
     // Filters
     const [filterBrand, setFilterBrand] = useState("");
-    const [filterDate, setFilterDate] = useState("");
+    const [filterMonth, setFilterMonth] = useState(""); // YYYY-MM
 
     React.useEffect(() => {
         const q = query(collection(db, "sales"), orderBy("createdAt", "desc"));
@@ -27,13 +27,16 @@ export const InvoicesView: React.FC = () => {
     const filtered = useMemo(() => {
         return sales.filter(s => {
             if (filterBrand && !s.brand.toLowerCase().includes(filterBrand.toLowerCase())) return false;
-            if (filterDate) {
-                const sDate = s.createdAt?.toDate ? s.createdAt.toDate().toISOString().slice(0, 10) : "";
-                if (sDate !== filterDate) return false;
+
+            if (filterMonth) {
+                // filterMonth is "2023-10"
+                const sDate = s.createdAt?.toDate ? s.createdAt.toDate() : new Date(s.createdAt);
+                const sMonthStr = sDate.toISOString().slice(0, 7); // "2023-10"
+                if (sMonthStr !== filterMonth) return false;
             }
             return true;
         });
-    }, [sales, filterBrand, filterDate]);
+    }, [sales, filterBrand, filterMonth]);
 
     // Grouping for Payout Cards
     const payouts = useMemo(() => {
@@ -60,6 +63,27 @@ export const InvoicesView: React.FC = () => {
         a.href = url;
         a.download = `Invoices_${new Date().toISOString().slice(0, 10)}.csv`;
         a.click();
+    };
+
+    const handleEmailInvoice = (brand: string, data: any) => {
+        const invoiceData = {
+            invoice: {
+                id: crypto.randomUUID(),
+                meta: { type: "invoice", status: "APPROVED", date: filterMonth ? filterMonth : "ALL TIME", currency: "INR", currencySymbol: "₹" },
+                branding: { companyName: "STREET JUNKIES INDIA", primaryColor: "#B40000" },
+                seller: { name: "STREET JUNKIES INDIA", email: "streetjunkiesindia@gmail.com" },
+                buyer: { name: brand },
+                summary: {
+                    rows: [
+                        { label: "Total", value: data.total },
+                        { label: "Commission", value: data.comm },
+                        { label: "Payout", value: data.payout }
+                    ]
+                }
+            }
+        };
+        console.log("Sending Monthly Invoice Email:", invoiceData);
+        alert(`Monthly Invoice sent to ${brand}!`);
     };
 
     return (
@@ -90,21 +114,23 @@ export const InvoicesView: React.FC = () => {
                         />
                     </div>
 
-                    <div className="relative group">
-                        <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground group-focus-within:text-primary transition-colors" />
-                        <input
-                            type="date"
-                            value={filterDate}
-                            onChange={e => setFilterDate(e.target.value)}
-                            className="pl-9 pr-3 h-9 rounded-xl bg-secondary/50 border-none text-sm focus:ring-2 focus:ring-ring text-muted-foreground focus:text-foreground transition-all outline-none cursor-pointer"
-                        />
+                    <div className="relative group flex items-center gap-2">
+                        <div className="relative">
+                            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground z-10" />
+                            <input
+                                type="month"
+                                value={filterMonth}
+                                onChange={e => setFilterMonth(e.target.value)}
+                                className="pl-9 pr-3 h-9 rounded-xl bg-secondary/50 border-none text-sm focus:ring-2 focus:ring-ring text-muted-foreground focus:text-foreground transition-all outline-none cursor-pointer w-40"
+                            />
+                        </div>
                     </div>
 
-                    {(filterBrand || filterDate) && (
+                    {(filterBrand || filterMonth) && (
                         <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => { setFilterBrand(""); setFilterDate(""); }}
+                            onClick={() => { setFilterBrand(""); setFilterMonth(""); }}
                             className="h-9 px-3 rounded-xl text-xs text-muted-foreground hover:text-foreground hover:bg-secondary/50"
                         >
                             Clear filters
@@ -139,6 +165,15 @@ export const InvoicesView: React.FC = () => {
                                         </div>
                                     </div>
                                 </div>
+                                <Button
+                                    onClick={() => handleEmailInvoice(p.brand, p)}
+                                    size="icon"
+                                    variant="ghost"
+                                    className="h-8 w-8 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 rounded-full transition-colors"
+                                    title="Email Monthly Invoice"
+                                >
+                                    <Mail className="w-4 h-4" />
+                                </Button>
                             </div>
 
                             {/* Stats Grid */}
@@ -181,7 +216,7 @@ export const InvoicesView: React.FC = () => {
                             <p className="text-sm font-medium text-foreground">No invoices found</p>
                             <p className="text-xs text-muted-foreground">Adjust filters or search for another brand.</p>
                         </div>
-                        <Button variant="outline" size="sm" onClick={() => { setFilterBrand(""); setFilterDate(""); }}>
+                        <Button variant="outline" size="sm" onClick={() => { setFilterBrand(""); setFilterMonth(""); }}>
                             Clear Filters
                         </Button>
                     </div>

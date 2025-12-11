@@ -275,9 +275,48 @@ export const SalesPanel: React.FC = () => {
                             <h2 className="text-2xl font-bold">Payment Success</h2>
                             <p className="text-muted-foreground">Transaction ID: #{Math.floor(Math.random() * 10000)}</p>
                         </div>
-                        <Button onClick={reset} className="w-full max-w-[200px] mt-4" variant="outline">
-                            Start New Sale
-                        </Button>
+
+                        <div className="flex flex-col gap-3 w-full max-w-[240px]">
+                            <Button
+                                onClick={() => {
+                                    // Mock Email Send
+                                    const invoiceData = {
+                                        invoice: {
+                                            id: crypto.randomUUID(),
+                                            meta: { type: "invoice", status: "APPROVED", date: new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' }).toUpperCase(), currency: "INR", currencySymbol: "₹" },
+                                            branding: { companyName: "STREET JUNKIES INDIA", primaryColor: "#B40000" },
+                                            seller: { name: "STREET JUNKIES INDIA", email: "streetjunkiesindia@gmail.com" },
+                                            buyer: { name: selectedItem?.brand || "Brand" },
+                                            table: {
+                                                rows: [{
+                                                    description: `${selectedItem?.name} - ${selectedItem?.size}`,
+                                                    price: parseFloat(sellingPrice),
+                                                    quantity: parseInt(qty),
+                                                    amount: parseFloat(sellingPrice) * parseInt(qty)
+                                                }]
+                                            },
+                                            summary: {
+                                                rows: [
+                                                    { label: "Total", value: parseFloat(sellingPrice) * parseInt(qty) },
+                                                    { label: "Commission", value: (parseFloat(sellingPrice) * parseInt(qty)) * 0.2 }, // Approx comm
+                                                    { label: "Payout", value: (parseFloat(sellingPrice) * parseInt(qty)) * 0.8 }
+                                                ]
+                                            }
+                                        }
+                                    };
+                                    console.log("Sending Invoice Email:", invoiceData);
+                                    alert(`Invoice sent to ${selectedItem?.brand || 'Brand'}!`);
+                                }}
+                                className="w-full bg-white text-black border border-gray-200 hover:bg-gray-50 shadow-sm"
+                            >
+                                <div className="mr-2 flex items-center justify-center h-4 w-4 rounded bg-red-500 text-white text-[8px] font-bold">M</div>
+                                Email Invoice to Brand
+                            </Button>
+
+                            <Button onClick={reset} className="w-full" variant="outline">
+                                Start New Sale
+                            </Button>
+                        </div>
                     </div>
                 )}
 
