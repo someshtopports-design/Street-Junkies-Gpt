@@ -12,7 +12,7 @@ import {
     MapPin,
     CheckCircle2
 } from "lucide-react";
-import { collection, query, onSnapshot, addDoc, doc, updateDoc, increment } from "firebase/firestore";
+import { collection, query, onSnapshot, addDoc, doc, updateDoc, increment, getDocs, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
 export const SalesPanel: React.FC = () => {
@@ -281,16 +281,32 @@ export const SalesPanel: React.FC = () => {
                                 onClick={async () => {
                                     try {
                                         const { sendInvoiceEmail } = await import("@/lib/emailService");
+
+                                        // 1. Fetch Brand details to get the REAL email
+                                        let brandEmail = "streetjunkiesindia@gmail.com"; // default fallback
+                                        try {
+                                            const brandsQuery = query(collection(db, "brands"), where("name", "==", selectedItem?.brand || ""));
+                                            const querySnapshot = await getDocs(brandsQuery);
+                                            if (!querySnapshot.empty) {
+                                                const brandData = querySnapshot.docs[0].data();
+                                                if (brandData.email) {
+                                                    brandEmail = brandData.email;
+                                                }
+                                            }
+                                        } catch (err) {
+                                            console.error("Error fetching brand email:", err);
+                                        }
+
                                         await sendInvoiceEmail({
                                             to_name: selectedItem?.brand || "Brand Partner",
-                                            to_email: "streetjunkiesindia@gmail.com", // Replace with brand's actual email
+                                            to_email: brandEmail,
                                             message: `New Sale Confirmed: ${selectedItem?.name}`,
                                             invoice_details: `Item: ${selectedItem?.name}\nQty: ${qty}\nTotal: ₹${parseFloat(sellingPrice) * parseInt(qty)}\nPayout: ₹${((parseFloat(sellingPrice) * parseInt(qty)) * 0.8).toFixed(2)}`
                                         });
-                                        alert(`Invoice sent to ${selectedItem?.brand || 'Brand'}!`);
+                                        alert(`Invoice sent to ${selectedItem?.brand || 'Brand'} at ${brandEmail}!`);
                                     } catch (error) {
                                         console.error(error);
-                                        alert("Failed to send email. configuring keys...");
+                                        alert("Failed to send email. Check configuration.");
                                     }
                                 }}
                                 className="w-full bg-white text-black border border-gray-200 hover:bg-gray-50 shadow-sm"

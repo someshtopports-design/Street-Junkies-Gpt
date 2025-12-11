@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Download, Filter, FileText, Calendar, Search, CheckCircle2, Mail } from "lucide-react";
-import { collection, query, orderBy, onSnapshot } from "firebase/firestore";
+import { collection, query, orderBy, onSnapshot, getDocs, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
 export const InvoicesView: React.FC = () => {
@@ -68,13 +68,29 @@ export const InvoicesView: React.FC = () => {
     const handleEmailInvoice = async (brand: string, data: any) => {
         try {
             const { sendInvoiceEmail } = await import("@/lib/emailService");
+
+            // 1. Fetch Brand email dynamically
+            let brandEmail = "streetjunkiesindia@gmail.com";
+            try {
+                const brandsQuery = query(collection(db, "brands"), where("name", "==", brand));
+                const querySnapshot = await getDocs(brandsQuery);
+                if (!querySnapshot.empty) {
+                    const brandData = querySnapshot.docs[0].data();
+                    if (brandData.email) {
+                        brandEmail = brandData.email;
+                    }
+                }
+            } catch (err) {
+                console.error("Error fetching brand email:", err);
+            }
+
             await sendInvoiceEmail({
                 to_name: brand,
-                to_email: "streetjunkiesindia@gmail.com", // Replace with real brand email
+                to_email: brandEmail,
                 message: `Monthly Invoice Report: ${filterMonth || "All Time"}`,
                 invoice_details: `Total Sales: ₹${data.total}\nCommission: ₹${data.comm}\nNet Payout: ₹${data.payout}`
             });
-            alert(`Monthly Invoice sent to ${brand}!`);
+            alert(`Monthly Invoice sent to ${brand} at ${brandEmail}!`);
         } catch (e) {
             console.error(e);
             alert("Failed to send email. Check configuration.");
