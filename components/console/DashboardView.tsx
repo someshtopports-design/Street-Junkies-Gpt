@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -9,15 +9,31 @@ import {
     ArrowUpRight,
     TrendingUp,
     Wallet,
-    Clock
+    Clock,
+    Store,
+    Calendar,
+    Download,
+    CheckCircle2,
+    Upload,
+    X,
+    Filter
 } from "lucide-react";
 import { collection, query, orderBy, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
+// --- Types ---
+interface DashboardViewProps {
+    store: string;
+    onSwitchStore: () => void;
+}
+
 // --- Subcomponents ---
 
-const MetricCard = ({ label, value, delta, deltaLabel, icon: Icon, colorClass }: any) => (
-    <Card className="relative overflow-hidden border border-border/50 bg-card p-5 group hover:shadow-md transition-all duration-300">
+const MetricCard = ({ label, value, delta, deltaLabel, icon: Icon, colorClass, onClick }: any) => (
+    <Card
+        onClick={onClick}
+        className="relative overflow-hidden border border-border/50 bg-card p-5 group hover:shadow-md transition-all duration-300 cursor-pointer hover:-translate-y-1"
+    >
         <div className={`absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity ${colorClass}`}>
             <Icon className="w-16 h-16" />
         </div>
@@ -44,11 +60,8 @@ const RecentSalesList = ({ sales, loading }: { sales: any[], loading: boolean })
         <div className="flex items-center justify-between">
             <div className="space-y-1">
                 <h3 className="font-semibold text-sm">Recent Activity</h3>
-                <p className="text-xs text-muted-foreground">Latest transactions across all outlets</p>
+                <p className="text-xs text-muted-foreground">Latest transactions</p>
             </div>
-            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground">
-                <ChevronRight className="w-4 h-4" />
-            </Button>
         </div>
 
         <div className="flex flex-col gap-3 flex-1 overflow-y-auto pr-2 custom-scrollbar">
@@ -86,7 +99,7 @@ const BrandPerformanceMap = ({ sales }: { sales: any[] }) => {
     const max = sorted[0]?.[1] || 1;
 
     return (
-        <Card className="flex flex-col gap-4 p-5 border-border/50 bg-card">
+        <Card className="flex flex-col gap-4 p-5 border-border/50 bg-card h-full">
             <div className="space-y-1">
                 <h3 className="font-semibold text-sm">Top Partners</h3>
                 <p className="text-xs text-muted-foreground">Highest performing brands by payout</p>
@@ -114,9 +127,19 @@ const BrandPerformanceMap = ({ sales }: { sales: any[] }) => {
 
 // --- Main View ---
 
-export const DashboardView: React.FC = () => {
+export const DashboardView: React.FC<DashboardViewProps> = ({ store, onSwitchStore }) => {
     const [sales, setSales] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+
+    // Filter Filters
+    const [filterDate, setFilterDate] = useState("");
+    const [filterMonth, setFilterMonth] = useState("");
+
+    // Drill Down Modal
+    const [selectedMetric, setSelectedMetric] = useState<"revenue" | "commission" | "payouts" | "settled" | null>(null);
+
+    // Mock Settlement State (Since we can't easily change schema without risk)
+    const [settledBrands, setSettledBrands] = useState<Record<string, boolean>>({});
 
     useEffect(() => {
         const q = query(collection(db, "sales"), orderBy("createdAt", "desc"));
@@ -127,65 +150,199 @@ export const DashboardView: React.FC = () => {
         return () => unsubscribe();
     }, []);
 
-    const totalRevenue = sales.reduce((acc, curr) => acc + (curr.amount || 0), 0);
-    const totalComm = sales.reduce((acc, curr) => acc + (curr.commission || 0), 0);
-    const totalPayout = sales.reduce((acc, curr) => acc + (curr.payoutAmount || 0), 0);
+    // Filter Logic
+    const filteredSales = useMemo(() => {
+        return sales.filter(s => {
+            // Store Filter
+            if (store && s.store && s.store !== store) return false;
+            // Date Filter
+            if (filterDate || filterMonth) {
+                const sDate = s.createdAt?.toDate ? s.createdAt.toDate() : new Date(s.createdAt);
+                if (filterDate && sDate.toISOString().slice(0, 10) !== filterDate) return false;
+                if (filterMonth && sDate.toISOString().slice(0, 7) !== filterMonth) return false;
+            }
+            return true;
+        });
+    }, [sales, store, filterDate, filterMonth]);
+
+    const totalRevenue = filteredSales.reduce((acc, curr) => acc + (curr.amount || 0), 0);
+    const totalComm = filteredSales.reduce((acc, curr) => acc + (curr.commission || 0), 0);
+    const totalPayout = filteredSales.reduce((acc, curr) => acc + (curr.payoutAmount || 0), 0);
+
+    // Aggregation for Modal
+    const brandStats = useMemo(() => {
+        const stats: Record<string, { revenue: number, comm: number, payout: number }> = {};
+        filteredSales.forEach(s => {
+            if (!stats[s.brand]) stats[s.brand] = { revenue: 0, comm: 0, payout: 0 };
+            stats[s.brand].revenue += s.amount || 0;
+            stats[s.brand].comm += s.commission || 0;
+            stats[s.brand].payout += s.payoutAmount || 0;
+        });
+        return Object.entries(stats).map(([brand, data]) => ({ brand, ...data }));
+    }, [filteredSales]);
 
     return (
-        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 h-[calc(100vh-100px)] flex flex-col overflow-hidden">
 
             {/* Hero Header */}
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 shrink-0">
                 <div>
-                    <h1 className="text-2xl font-bold tracking-tight text-foreground">Dashboard</h1>
-                    <p className="text-sm text-muted-foreground mt-1">Real-time overview of your store's performance.</p>
+                    <div className="flex items-center gap-2">
+                        <h1 className="text-2xl font-bold tracking-tight text-foreground">Dashboard</h1>
+                        <Badge variant="outline" className="text-xs bg-background gap-1 p-1 pr-2 cursor-pointer hover:bg-secondary transition-colors" onClick={onSwitchStore}>
+                            <Store className="w-3 h-3" />
+                            {store}
+                        </Badge>
+                    </div>
+                    <p className="text-sm text-muted-foreground mt-1">Real-time overview for {store}.</p>
                 </div>
+
                 <div className="flex items-center gap-2">
-                    <Button size="sm" variant="outline" className="text-xs h-9">Download Report</Button>
-                    <Button size="sm" className="text-xs h-9 bg-primary text-primary-foreground shadow-lg shadow-primary/20">
-                        <TrendingUp className="w-3.5 h-3.5 mr-2" />
-                        View Live Sales
-                    </Button>
+                    {/* Filters */}
+                    <div className="flex items-center gap-1 bg-secondary/30 p-1 rounded-lg border border-border/50">
+                        <input
+                            type="date"
+                            className="bg-transparent text-xs border-none focus:ring-0 p-1 px-2"
+                            value={filterDate}
+                            onChange={(e) => { setFilterDate(e.target.value); setFilterMonth(""); }}
+                        />
+                        <span className="text-[10px] text-muted-foreground">OR</span>
+                        <input
+                            type="month"
+                            className="bg-transparent text-xs border-none focus:ring-0 p-1 px-2 w-32"
+                            value={filterMonth}
+                            onChange={(e) => { setFilterMonth(e.target.value); setFilterDate(""); }}
+                        />
+                        {(filterDate || filterMonth) && (
+                            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => { setFilterDate(""); setFilterMonth("") }}>
+                                <X className="w-3 h-3" />
+                            </Button>
+                        )}
+                    </div>
                 </div>
             </div>
 
             {/* Metrics Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 shrink-0">
                 <MetricCard
                     label="Total Revenue"
                     value={`₹${totalRevenue.toLocaleString()}`}
-                    delta="Live"
+                    delta="Click for Breakdown"
                     deltaLabel="Gross Volume"
                     icon={TrendingUp}
                     colorClass="text-blue-500"
+                    onClick={() => setSelectedMetric("revenue")}
                 />
                 <MetricCard
                     label="Commission"
                     value={`₹${totalComm.toLocaleString()}`}
-                    delta={`${((totalComm / (totalRevenue || 1)) * 100).toFixed(1)}%`}
-                    deltaLabel="Avg. Take Rate"
+                    delta="Click for Breakdown"
+                    deltaLabel="Total Earnings"
                     icon={Wallet}
                     colorClass="text-emerald-500"
+                    onClick={() => setSelectedMetric("commission")}
                 />
                 <MetricCard
                     label="Payouts Pending"
                     value={`₹${totalPayout.toLocaleString()}`}
-                    delta={`${sales.length}`}
-                    deltaLabel="Orders Processed"
+                    delta="Manage Settlements"
+                    deltaLabel="Net Payable to Brands"
                     icon={Clock}
                     colorClass="text-orange-500"
+                    onClick={() => setSelectedMetric("payouts")}
                 />
             </div>
 
             {/* Main Content Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-2">
-                    <RecentSalesList sales={sales.slice(0, 10)} loading={loading} />
+            <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-6 overflow-hidden min-h-0">
+                <div className="lg:col-span-2 overflow-hidden h-full">
+                    <RecentSalesList sales={filteredSales.slice(0, 20)} loading={loading} />
                 </div>
-                <div>
-                    <BrandPerformanceMap sales={sales} />
+                <div className="overflow-hidden h-full">
+                    <BrandPerformanceMap sales={filteredSales} />
                 </div>
             </div>
+
+            {/* Drill Down Modal */}
+            {selectedMetric && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+                    <Card className="w-full max-w-2xl h-[80vh] flex flex-col overflow-hidden shadow-2xl">
+                        <div className="p-4 border-b border-border flex justify-between items-center bg-muted/20">
+                            <div>
+                                <h2 className="text-lg font-bold capitalize">{selectedMetric} Breakdown</h2>
+                                <p className="text-xs text-muted-foreground">Brand-wise Analysis ({store})</p>
+                            </div>
+                            <Button variant="ghost" size="icon" onClick={() => setSelectedMetric(null)}>
+                                <X className="w-4 h-4" />
+                            </Button>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto p-0">
+                            <table className="w-full text-sm text-left">
+                                <thead className="text-xs text-muted-foreground uppercase bg-muted/40 sticky top-0 backdrop-blur-sm z-10">
+                                    <tr>
+                                        <th className="px-6 py-3">Brand</th>
+                                        <th className="px-6 py-3 text-right">
+                                            {selectedMetric === 'revenue' ? 'Revenue' :
+                                                selectedMetric === 'commission' ? 'Commission' : 'Payout Amount'}
+                                        </th>
+                                        {selectedMetric === 'payouts' && <th className="px-6 py-3 text-right">Status</th>}
+                                        {selectedMetric === 'payouts' && <th className="px-6 py-3 text-right">Action</th>}
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-border/50">
+                                    {brandStats.map(stat => (
+                                        <tr key={stat.brand} className="hover:bg-muted/10 transition-colors">
+                                            <td className="px-6 py-4 font-medium">{stat.brand}</td>
+                                            <td className="px-6 py-4 text-right font-mono text-base">
+                                                ₹{
+                                                    selectedMetric === 'revenue' ? stat.revenue.toLocaleString() :
+                                                        selectedMetric === 'commission' ? stat.comm.toLocaleString() :
+                                                            stat.payout.toLocaleString()
+                                                }
+                                            </td>
+                                            {selectedMetric === 'payouts' && (
+                                                <>
+                                                    <td className="px-6 py-4 text-right">
+                                                        {settledBrands[stat.brand] ? (
+                                                            <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20">Settled</Badge>
+                                                        ) : (
+                                                            <Badge variant="outline" className="bg-orange-500/10 text-orange-600 border-orange-500/20">Pending</Badge>
+                                                        )}
+                                                    </td>
+                                                    <td className="px-6 py-4 text-right">
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            className="h-8 gap-2"
+                                                            onClick={() => {
+                                                                // Toggle Settlement ID
+                                                                const isSettled = settledBrands[stat.brand];
+                                                                if (!isSettled) {
+                                                                    const file = prompt("Upload PDF Proof (Simulated): Enter file name");
+                                                                    if (file) {
+                                                                        setSettledBrands(prev => ({ ...prev, [stat.brand]: true }));
+                                                                        alert(`Settled ${stat.brand}. Proof: ${file}`);
+                                                                    }
+                                                                } else {
+                                                                    setSettledBrands(prev => ({ ...prev, [stat.brand]: false }));
+                                                                }
+                                                            }}
+                                                        >
+                                                            {settledBrands[stat.brand] ? "Undo" : "Settle"}
+                                                            {!settledBrands[stat.brand] && <Upload className="w-3 h-3 text-muted-foreground" />}
+                                                        </Button>
+                                                    </td>
+                                                </>
+                                            )}
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </Card>
+                </div>
+            )}
         </div>
     );
 };

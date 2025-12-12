@@ -3,17 +3,22 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Download, Filter, FileText, Calendar, Search, CheckCircle2, Mail, Send } from "lucide-react";
+import { Download, Filter, FileText, Calendar, Search, CheckCircle2, Mail, Send, X } from "lucide-react";
 import { collection, query, orderBy, onSnapshot, getDocs, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
-export const InvoicesView: React.FC = () => {
+interface InvoicesViewProps {
+    store: string;
+}
+
+export const InvoicesView: React.FC<InvoicesViewProps> = ({ store }) => {
     const [sales, setSales] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
     // Filters
     const [filterBrand, setFilterBrand] = useState("");
     const [filterMonth, setFilterMonth] = useState(""); // YYYY-MM
+    const [filterDate, setFilterDate] = useState(""); // YYYY-MM-DD
 
     // Preview Modal State
     const [emailPreview, setEmailPreview] = useState<any>(null);
@@ -29,17 +34,29 @@ export const InvoicesView: React.FC = () => {
 
     const filtered = useMemo(() => {
         return sales.filter(s => {
+            // 1. Store Filter (Strict or Legacy)
+            if (store && s.store && s.store !== store) return false;
+            // Legacy items handling: if !s.store, we decide. For now, let's include them or exclude based on preference.
+            // Let's INCLUDE legacy items in both stores for visibility during transition.
+
+            // 2. Brand Filter
             if (filterBrand && !s.brand.toLowerCase().includes(filterBrand.toLowerCase())) return false;
 
-            if (filterMonth) {
-                // filterMonth is "2023-10"
-                const sDate = s.createdAt?.toDate ? s.createdAt.toDate() : new Date(s.createdAt);
-                const sMonthStr = sDate.toISOString().slice(0, 7); // "2023-10"
+            // 3. Date/Month Filter
+            const sDateObj = s.createdAt?.toDate ? s.createdAt.toDate() : new Date(s.createdAt);
+
+            if (filterDate) {
+                // Exact Date Match
+                const sDateStr = sDateObj.toISOString().slice(0, 10);
+                if (sDateStr !== filterDate) return false;
+            } else if (filterMonth) {
+                // Month Match
+                const sMonthStr = sDateObj.toISOString().slice(0, 7);
                 if (sMonthStr !== filterMonth) return false;
             }
             return true;
         });
-    }, [sales, filterBrand, filterMonth]);
+    }, [sales, filterBrand, filterMonth, filterDate, store]);
 
     // Grouping for Payout Cards
     const payouts = useMemo(() => {
@@ -55,16 +72,16 @@ export const InvoicesView: React.FC = () => {
     }, [filtered]);
 
     const handleExport = () => {
-        const header = "Date,Brand,Item,Customer,Amount,Commission,Payout\n";
+        const header = "Date,Brand,Item,Customer,Amount,Commission,Payout,Store\n";
         const rows = filtered.map(s => {
             const date = s.createdAt?.toDate ? s.createdAt.toDate().toLocaleDateString() : "-";
-            return `${date},${s.brand},${s.item},${s.customer?.name || "-"},${s.amount},${s.commission},${s.payoutAmount}`;
+            return `${date},${s.brand},${s.item},${s.customer?.name || "-"},${s.amount},${s.commission},${s.payoutAmount},${s.store || "N/A"}`;
         }).join("\n");
         const blob = new Blob([header + rows], { type: 'text/csv' });
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `Invoices_${new Date().toISOString().slice(0, 10)}.csv`;
+        a.download = `Invoices_${store}_${new Date().toISOString().slice(0, 10)}.csv`;
         a.click();
     };
 
@@ -85,10 +102,11 @@ export const InvoicesView: React.FC = () => {
         }
 
         // 2. Open Preview
+        const timeLabel = filterDate ? `Date: ${filterDate}` : `Month: ${filterMonth || "All Time"}`;
         setEmailPreview({
             to_name: brand,
             to_email: brandEmail,
-            message: `Monthly Invoice Report: ${filterMonth || "All Time"}`,
+            message: `Invoice Report (${store})\n${timeLabel}`,
             invoice_details: `Total Sales: ₹${data.total}\nCommission: ₹${data.comm}\nNet Payout: ₹${data.payout}`
         });
     };
@@ -100,7 +118,10 @@ export const InvoicesView: React.FC = () => {
             <div className="flex flex-col gap-4 shrink-0">
                 <div className="flex items-center justify-between">
                     <div>
-                        <h1 className="text-2xl font-bold tracking-tight text-foreground">Invoices</h1>
+                        <div className="flex items-center gap-2">
+                            <h1 className="text-2xl font-bold tracking-tight text-foreground">Invoices</h1>
+                            <Badge variant="outline" className="text-xs bg-background">{store}</Badge>
+                        </div>
                         <p className="text-sm text-muted-foreground">Manage and export your financial statements.</p>
                     </div>
                     <Button onClick={handleExport} size="sm" className="bg-primary text-primary-foreground shadow-lg shadow-primary/20 rounded-full px-4 text-xs font-semibold h-9">
@@ -110,7 +131,7 @@ export const InvoicesView: React.FC = () => {
                 </div>
 
                 {/* Minimalist Filter Bar */}
-                <div className="flex items-center gap-3">
+                <div className="flex flex-col md:flex-row items-start md:items-center gap-3">
                     <div className="relative group w-full max-w-xs">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground group-focus-within:text-primary transition-colors" />
                         <Input
@@ -121,23 +142,34 @@ export const InvoicesView: React.FC = () => {
                         />
                     </div>
 
-                    <div className="relative group flex items-center gap-2">
+                    <div className="flex items-center gap-2">
+                        {/* Month Picker */}
                         <div className="relative">
                             <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground z-10" />
                             <input
                                 type="month"
                                 value={filterMonth}
-                                onChange={e => setFilterMonth(e.target.value)}
-                                className="pl-9 pr-3 h-9 rounded-xl bg-secondary/50 border-none text-sm focus:ring-2 focus:ring-ring text-muted-foreground focus:text-foreground transition-all outline-none cursor-pointer w-40"
+                                onChange={e => { setFilterMonth(e.target.value); setFilterDate(""); }} // Clear date if month selected
+                                className="pl-9 pr-3 h-9 rounded-xl bg-secondary/50 border-none text-sm focus:ring-2 focus:ring-ring text-muted-foreground focus:text-foreground transition-all outline-none cursor-pointer w-36"
+                            />
+                        </div>
+                        <span className="text-xs text-muted-foreground font-medium">OR</span>
+                        {/* Date Picker */}
+                        <div className="relative">
+                            <input
+                                type="date"
+                                value={filterDate}
+                                onChange={e => { setFilterDate(e.target.value); setFilterMonth(""); }} // Clear month if date selected
+                                className="pl-3 pr-3 h-9 rounded-xl bg-secondary/50 border-none text-sm focus:ring-2 focus:ring-ring text-muted-foreground focus:text-foreground transition-all outline-none cursor-pointer w-36"
                             />
                         </div>
                     </div>
 
-                    {(filterBrand || filterMonth) && (
+                    {(filterBrand || filterMonth || filterDate) && (
                         <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => { setFilterBrand(""); setFilterMonth(""); }}
+                            onClick={() => { setFilterBrand(""); setFilterMonth(""); setFilterDate(""); }}
                             className="h-9 px-3 rounded-xl text-xs text-muted-foreground hover:text-foreground hover:bg-secondary/50"
                         >
                             Clear filters
@@ -220,10 +252,10 @@ export const InvoicesView: React.FC = () => {
                             <Filter className="w-6 h-6 text-muted-foreground/50" />
                         </div>
                         <div>
-                            <p className="text-sm font-medium text-foreground">No invoices found</p>
-                            <p className="text-xs text-muted-foreground">Adjust filters or search for another brand.</p>
+                            <p className="text-sm font-medium text-foreground">No invoices found for {store}</p>
+                            <p className="text-xs text-muted-foreground">Adjust filters or try a different date.</p>
                         </div>
-                        <Button variant="outline" size="sm" onClick={() => { setFilterBrand(""); setFilterMonth(""); }}>
+                        <Button variant="outline" size="sm" onClick={() => { setFilterBrand(""); setFilterMonth(""); setFilterDate(""); }}>
                             Clear Filters
                         </Button>
                     </div>
