@@ -46,6 +46,9 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ store }) => {
             // Legacy items handling: if !s.store, we decide. For now, let's include them or exclude based on preference.
             // Let's INCLUDE legacy items in both stores for visibility during transition.
 
+            // 1.5 Soft Delete Filter
+            if (s.status === 'deleted' || s.status === 'archived') return false;
+
             // 2. Brand Filter
             if (filterBrand && !s.brand.toLowerCase().includes(filterBrand.toLowerCase())) return false;
 

@@ -180,6 +180,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ store, onSwitchSto
         return sales.filter(s => {
             // Store Filter
             if (store && s.store && s.store !== store) return false;
+            // Soft Delete Filter
+            if (s.status === 'deleted' || s.status === 'archived') return false;
             // Date Filter
             if (filterDate || filterMonth) {
                 const sDate = s.createdAt?.toDate ? s.createdAt.toDate() : new Date(s.createdAt);
@@ -337,7 +339,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ store, onSwitchSto
             {/* Main Content Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 shrink-0 h-auto md:flex-1 md:overflow-hidden md:min-h-0">
                 <div className="lg:col-span-2 overflow-hidden h-[500px] md:h-full">
-                    <RecentSalesList sales={filteredSales.slice(0, 20)} loading={loading} />
+                    <RecentSalesList sales={filteredSales} loading={loading} />
                 </div>
                 <div className="overflow-hidden h-[400px] md:h-full">
                     <BrandPerformanceMap sales={filteredSales} />
