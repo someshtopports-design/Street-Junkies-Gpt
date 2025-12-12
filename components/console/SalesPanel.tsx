@@ -510,27 +510,26 @@ export const SalesPanel: React.FC<SalesPanelProps> = ({ store }) => {
                                     }
 
                                     // 2. Set Preview Data explicitly using the CURRENT transaction state
-                                    const totalAmount = parseFloat(sellingPrice) * parseInt(qty);
+                                    const totalAmount = cart.reduce((sum, i) => sum + (parseFloat(i.sellingPrice) * i.qty), 0);
                                     const payoutAmount = (totalAmount * 0.8).toFixed(2);
-                                    const itemName = selectedItem?.name || "Unknown Item";
 
                                     // 3. Prepare Data for New V3 Template
-                                    const items = [{
-                                        desc: `${itemName} (${selectedItem?.brand} - ${selectedItem?.size || 'OS'})`,
-                                        qty: parseInt(qty),
-                                        price: parseFloat(sellingPrice),
-                                        amount: totalAmount
-                                    }];
+                                    const items = cart.map(item => ({
+                                        desc: `${item.name} (${item.brand} - ${item.size || 'OS'})`,
+                                        qty: item.qty,
+                                        price: parseFloat(item.sellingPrice),
+                                        amount: parseFloat(item.sellingPrice) * item.qty
+                                    }));
 
                                     setEmailPreview({
-                                        ui_to_name: selectedItem?.brand || "Brand Partner",
+                                        ui_to_name: cart[0]?.brand || "Brand Partner",
                                         ui_to_email: brandEmail,
-                                        ui_message: `New Sale Confirmed: ${itemName}`,
-                                        ui_details: `Item: ${itemName}\nQty: ${qty}\nTotal: ₹${totalAmount}\nPayout: ₹${payoutAmount}`,
+                                        ui_message: `New Sale Confirmed: ${cart.length} Order Items`,
+                                        ui_details: `Items: ${cart.length}\nTotal: ₹${totalAmount}\nPayout: ₹${payoutAmount}`,
 
                                         emailParams: {
                                             to_email: brandEmail,
-                                            to_name: selectedItem?.brand || "Partner",
+                                            to_name: cart[0]?.brand || "Partner",
                                             status: "CONFIRMED",
                                             invoice_date: new Date().toLocaleDateString('en-IN'),
                                             invoice_period: new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
