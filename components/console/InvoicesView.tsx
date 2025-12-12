@@ -109,12 +109,18 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ store }) => {
         }
 
         // 2. Open Preview
-        const timeLabel = filterDate ? `Date: ${filterDate}` : `Month: ${filterMonth || "All Time"}`;
+        // 2. Open Preview
+        const timeLabel = filterDate ? `Date: ${filterDate}` : (filterMonth ? `Month: ${filterMonth}` : "All Time");
+
+        // Recalculate context specific to this filtered view to be safe
+        const specificPayout = data.payout || 0;
+        const specificTotal = data.total || 0;
+
         setEmailPreview({
             to_name: brand,
             to_email: brandEmail,
-            message: `Invoice Report (${store})\n${timeLabel}`,
-            invoice_details: `Total Sales: ₹${data.total}\nCommission: ₹${data.comm}\nNet Payout: ₹${data.payout}`
+            message: `Invoice Report (${store})\nPeriod: ${timeLabel}`,
+            invoice_details: `Total Sales Volume: ₹${specificTotal.toLocaleString()}\nCommission Deducted: ₹${data.comm.toLocaleString()}\n\nNET PAYOUT AMOUNT: ₹${specificPayout.toLocaleString()}`
         });
     };
 

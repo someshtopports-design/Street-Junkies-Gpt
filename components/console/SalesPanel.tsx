@@ -375,12 +375,16 @@ export const SalesPanel: React.FC<SalesPanelProps> = ({ store }) => {
                                         console.error("Error fetching brand email:", err);
                                     }
 
-                                    // 2. Set Preview Data instead of sending immediately
+                                    // 2. Set Preview Data explicitly using the CURRENT transaction state
+                                    const totalAmount = parseFloat(sellingPrice) * parseInt(qty);
+                                    const payoutAmount = (totalAmount * 0.8).toFixed(2);
+                                    const itemName = selectedItem?.name || "Unknown Item";
+
                                     setEmailPreview({
                                         to_name: selectedItem?.brand || "Brand Partner",
                                         to_email: brandEmail,
-                                        message: `New Sale Confirmed: ${selectedItem?.name}`,
-                                        invoice_details: `Item: ${selectedItem?.name}\nQty: ${qty}\nTotal: ₹${parseFloat(sellingPrice) * parseInt(qty)}\nPayout: ₹${((parseFloat(sellingPrice) * parseInt(qty)) * 0.8).toFixed(2)}`
+                                        message: `New Sale Confirmed: ${itemName}`,
+                                        invoice_details: `Store: ${store}\nItem: ${itemName}\nQty: ${qty}\nUnit Price: ₹${sellingPrice}\nTotal Sales: ₹${totalAmount}\nNet Payout: ₹${payoutAmount}\nDate: ${new Date().toLocaleDateString()}`
                                     });
                                 }}
                                 className="w-full bg-white text-black border border-gray-200 hover:bg-gray-50 shadow-sm"
