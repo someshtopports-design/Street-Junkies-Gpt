@@ -517,58 +517,92 @@ export const SalesPanel: React.FC<SalesPanelProps> = ({ store }) => {
                         <div className="flex flex-col gap-3 w-full max-w-[240px]">
                             <Button
                                 onClick={async () => {
-                                    // 1. Fetch Brand details to get the REAL email
-                                    let brandEmail = "somesh.topports@gmail.com"; // default fallback
-                                    try {
-                                        const brandsQuery = query(collection(db, "brands"), where("name", "==", cart[0]?.brand || ""));
-                                        const querySnapshot = await getDocs(brandsQuery);
-                                        if (!querySnapshot.empty) {
-                                            const brandData = querySnapshot.docs[0].data();
-                                            if (brandData.email) {
-                                                brandEmail = brandData.email;
+                                    // 1. Group Items by Brand
+                                    const itemsByBrand: Record<string, any[]> = {};
+                                    cart.forEach(item => {
+                                        const brand = item.brand || "Unknown";
+                                        if (!itemsByBrand[brand]) itemsByBrand[brand] = [];
+                                        itemsByBrand[brand].push(item);
+                                    });
+
+                                    // 2. Prepare Batches
+                                    const batches = [];
+                                    const brands = Object.keys(itemsByBrand);
+
+                                    for (const brand of brands) {
+                                        let brandEmail = "somesh.topports@gmail.com"; // default
+                                        // Fetch Real Email
+                                        try {
+                                            const brandsQuery = query(collection(db, "brands"), where("name", "==", brand));
+                                            const snap = await getDocs(brandsQuery);
+                                            if (!snap.empty && snap.docs[0].data().email) {
+                                                brandEmail = snap.docs[0].data().email;
                                             }
+                                        } catch (e) {
+                                            console.error(`Error fetching email for ${brand}`, e);
                                         }
-                                    } catch (err) {
-                                        console.error("Error fetching brand email:", err);
+
+                                        const brandItems = itemsByBrand[brand];
+                                        const brandTotal = brandItems.reduce((sum, i) => sum + (parseFloat(i.sellingPrice) * i.qty), 0);
+                                        const brandPayout = (brandTotal * 0.8).toFixed(2);
+
+                                        // V3 Items for this brand
+                                        const v3Items = brandItems.map(item => ({
+                                            desc: `${item.name} (${item.brand} - ${item.size || 'OS'})`,
+                                            qty: item.qty,
+                                            price: parseFloat(item.sellingPrice),
+                                            amount: parseFloat(item.sellingPrice) * item.qty
+                                        }));
+
+                                        batches.push({
+                                            brandName: brand,
+                                            email: brandEmail,
+                                            itemsCount: brandItems.length,
+                                            total: brandTotal,
+                                            emailParams: {
+                                                to_email: brandEmail,
+                                                to_name: brand,
+                                                status: "CONFIRMED",
+                                                invoice_date: new Date().toLocaleDateString('en-IN'),
+                                                invoice_period: new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+                                                items: v3Items,
+                                                totals: {
+                                                    total: brandTotal,
+                                                    comm: brandTotal * 0.2,
+                                                    payout: parseFloat(brandPayout)
+                                                }
+                                            }
+                                        });
                                     }
 
-                                    // 2. Set Preview Data explicitly using the CURRENT transaction state
-                                    const totalAmount = cart.reduce((sum, i) => sum + (parseFloat(i.sellingPrice) * i.qty), 0);
-                                    const payoutAmount = (totalAmount * 0.8).toFixed(2);
-
-                                    // 3. Prepare Data for New V3 Template
-                                    const items = cart.map(item => ({
-                                        desc: `${item.name} (${item.brand} - ${item.size || 'OS'})`,
-                                        qty: item.qty,
-                                        price: parseFloat(item.sellingPrice),
-                                        amount: parseFloat(item.sellingPrice) * item.qty
-                                    }));
-
-                                    setEmailPreview({
-                                        ui_to_name: cart[0]?.brand || "Brand Partner",
-                                        ui_to_email: brandEmail,
-                                        ui_message: `New Sale Confirmed: ${cart.length} Order Items`,
-                                        ui_details: `Items: ${cart.length}\nTotal: ₹${totalAmount}\nPayout: ₹${payoutAmount}`,
-
-                                        emailParams: {
-                                            to_email: brandEmail,
-                                            to_name: cart[0]?.brand || "Partner",
-                                            status: "CONFIRMED",
-                                            invoice_date: new Date().toLocaleDateString('en-IN'),
-                                            invoice_period: new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
-                                            items: items,
-                                            totals: {
-                                                total: totalAmount,
-                                                comm: totalAmount * 0.2,
-                                                payout: parseFloat(payoutAmount)
-                                            }
-                                        }
-                                    });
+                                    // 3. Set Preview based on Batches
+                                    if (batches.length === 1) {
+                                        // Single Brand Mode (Legacy View)
+                                        const b = batches[0];
+                                        setEmailPreview({
+                                            type: 'single',
+                                            ui_to_name: b.brandName,
+                                            ui_to_email: b.email,
+                                            ui_message: `New Sale Confirmed: ${b.itemsCount} Items`,
+                                            ui_details: `Total: ₹${b.total}\nItems: ${b.itemsCount}`,
+                                            emailParams: b.emailParams
+                                        });
+                                    } else {
+                                        // Multi Brand Mode
+                                        setEmailPreview({
+                                            type: 'multi',
+                                            batches: batches,
+                                            ui_to_name: "Multiple Brands",
+                                            ui_to_email: `${batches.length} Emails`,
+                                            ui_message: `This wil send ${batches.length} separate invoices.`,
+                                            ui_details: batches.map(b => `${b.brandName}: ${b.itemsCount} items (₹${b.total})`).join('\n')
+                                        });
+                                    }
                                 }}
                                 className="w-full bg-white text-black border border-gray-200 hover:bg-gray-50 shadow-sm"
                             >
                                 <div className="mr-2 flex items-center justify-center h-4 w-4 rounded bg-red-500 text-white text-[8px] font-bold">M</div>
-                                Email Invoice to Brand
+                                Email Invoice(s)
                             </Button>
 
                             <Button onClick={reset} className="w-full" variant="outline">
@@ -594,7 +628,7 @@ export const SalesPanel: React.FC<SalesPanelProps> = ({ store }) => {
                                     <span className="font-mono text-xs">{emailPreview.ui_to_email}</span>
 
                                     <span className="text-muted-foreground text-right">Subject:</span>
-                                    <span className="truncate">Invoice for {emailPreview.ui_to_name}...</span>
+                                    <span className="truncate">{emailPreview.batches ? "Multi-Brand Invoice Run" : `Invoice for ${emailPreview.ui_to_name}...`}</span>
                                 </div>
                                 <div className="bg-secondary/20 p-3 rounded-lg text-xs font-mono text-muted-foreground whitespace-pre-wrap border border-border/50">
                                     {emailPreview.ui_message}
@@ -617,8 +651,17 @@ export const SalesPanel: React.FC<SalesPanelProps> = ({ store }) => {
                                     onClick={async () => {
                                         try {
                                             const { sendInvoiceEmail } = await import("@/lib/emailService");
-                                            await sendInvoiceEmail(emailPreview.emailParams);
-                                            setAlertConfig({ open: true, title: "Email Sent", desc: `Invoice sent successfully to ${emailPreview.ui_to_email}!` });
+
+                                            if (emailPreview.batches) {
+                                                // Multi-send
+                                                await Promise.all(emailPreview.batches.map((b: any) => sendInvoiceEmail(b.emailParams)));
+                                                setAlertConfig({ open: true, title: "Emails Sent", desc: `${emailPreview.batches.length} invoices sent successfully!` });
+                                            } else {
+                                                // Single-send
+                                                await sendInvoiceEmail(emailPreview.emailParams);
+                                                setAlertConfig({ open: true, title: "Email Sent", desc: `Invoice sent successfully!` });
+                                            }
+
                                             setEmailPreview(null);
                                         } catch (e: any) {
                                             console.error(e);
