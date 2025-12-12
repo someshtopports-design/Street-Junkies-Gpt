@@ -68,6 +68,9 @@ export const SalesPanel: React.FC<SalesPanelProps> = ({ store }) => {
                 } else {
                     // Optional: Provide feedback for invalid scan or keep scanning
                     console.log("Scanned code not found in inventory:", decodedText);
+                    alert("Item not found in inventory.");
+                    setIsScanning(false);
+                    scanner.clear();
                 }
             };
 

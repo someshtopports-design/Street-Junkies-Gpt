@@ -18,7 +18,7 @@ import {
     X,
     Filter
 } from "lucide-react";
-import { collection, query, orderBy, onSnapshot } from "firebase/firestore";
+import { collection, query, orderBy, onSnapshot, writeBatch, doc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
 // --- Types ---
@@ -138,8 +138,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ store, onSwitchSto
     // Drill Down Modal
     const [selectedMetric, setSelectedMetric] = useState<"revenue" | "commission" | "payouts" | "settled" | null>(null);
 
-    // Mock Settlement State (Since we can't easily change schema without risk)
-    const [settledBrands, setSettledBrands] = useState<Record<string, boolean>>({});
+    // Settlement State (Persistent)
 
     useEffect(() => {
         const q = query(collection(db, "sales"), orderBy("createdAt", "desc"));
@@ -167,19 +166,54 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ store, onSwitchSto
 
     const totalRevenue = filteredSales.reduce((acc, curr) => acc + (curr.amount || 0), 0);
     const totalComm = filteredSales.reduce((acc, curr) => acc + (curr.commission || 0), 0);
-    const totalPayout = filteredSales.reduce((acc, curr) => acc + (curr.payoutAmount || 0), 0);
+    const totalPayout = filteredSales.reduce((acc, curr) => {
+        // Only count pending payouts for the dashboard metric
+        if (curr.payoutStatus === 'settled') return acc;
+        return acc + (curr.payoutAmount || 0);
+    }, 0);
 
     // Aggregation for Modal
     const brandStats = useMemo(() => {
-        const stats: Record<string, { revenue: number, comm: number, payout: number }> = {};
+        const stats: Record<string, { revenue: number, comm: number, payout: number, pendingPayout: number }> = {};
         filteredSales.forEach(s => {
-            if (!stats[s.brand]) stats[s.brand] = { revenue: 0, comm: 0, payout: 0 };
+            if (!stats[s.brand]) stats[s.brand] = { revenue: 0, comm: 0, payout: 0, pendingPayout: 0 };
             stats[s.brand].revenue += s.amount || 0;
             stats[s.brand].comm += s.commission || 0;
             stats[s.brand].payout += s.payoutAmount || 0;
+
+            if (s.payoutStatus !== 'settled') {
+                stats[s.brand].pendingPayout += s.payoutAmount || 0;
+            }
         });
         return Object.entries(stats).map(([brand, data]) => ({ brand, ...data }));
     }, [filteredSales]);
+
+    const handleSettle = async (brandName: string) => {
+        if (!confirm(`Confirm settlement for all pending sales for ${brandName}?`)) return;
+
+        const batch = writeBatch(db);
+        const pendingSales = filteredSales.filter(s => s.brand === brandName && s.payoutStatus !== 'settled');
+
+        if (pendingSales.length === 0) {
+            alert("No pending sales to settle.");
+            return;
+        }
+
+        try {
+            pendingSales.forEach(s => {
+                const ref = doc(db, "sales", s.id);
+                batch.update(ref, {
+                    payoutStatus: 'settled',
+                    settledAt: new Date()
+                });
+            });
+            await batch.commit();
+            alert(`Settled ${pendingSales.length} transactions for ${brandName}.`);
+        } catch (e) {
+            console.error("Settlement failed", e);
+            alert("Failed to process settlement. See console.");
+        }
+    };
 
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 h-[calc(100vh-100px)] flex flex-col overflow-y-auto md:overflow-hidden">
@@ -246,7 +280,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ store, onSwitchSto
                     label="Payouts Pending"
                     value={`₹${totalPayout.toLocaleString()}`}
                     delta="Manage Settlements"
-                    deltaLabel="Net Payable to Brands"
+                    deltaLabel="Pending Net Payable"
                     icon={Clock}
                     colorClass="text-orange-500"
                     onClick={() => setSelectedMetric("payouts")}
@@ -298,40 +332,33 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ store, onSwitchSto
                                                 ₹{
                                                     selectedMetric === 'revenue' ? stat.revenue.toLocaleString() :
                                                         selectedMetric === 'commission' ? stat.comm.toLocaleString() :
-                                                            stat.payout.toLocaleString()
+                                                            (selectedMetric === 'payouts' ? stat.pendingPayout.toLocaleString() : stat.payout.toLocaleString())
                                                 }
+                                                {selectedMetric === 'payouts' && stat.pendingPayout !== stat.payout && (
+                                                    <div className="text-[10px] text-muted-foreground">Total: ₹{stat.payout.toLocaleString()}</div>
+                                                )}
                                             </td>
                                             {selectedMetric === 'payouts' && (
                                                 <>
                                                     <td className="px-6 py-4 text-right">
-                                                        {settledBrands[stat.brand] ? (
+                                                        {stat.pendingPayout === 0 ? (
                                                             <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20">Settled</Badge>
                                                         ) : (
                                                             <Badge variant="outline" className="bg-orange-500/10 text-orange-600 border-orange-500/20">Pending</Badge>
                                                         )}
                                                     </td>
                                                     <td className="px-6 py-4 text-right">
-                                                        <Button
-                                                            size="sm"
-                                                            variant="outline"
-                                                            className="h-8 gap-2"
-                                                            onClick={() => {
-                                                                // Toggle Settlement ID
-                                                                const isSettled = settledBrands[stat.brand];
-                                                                if (!isSettled) {
-                                                                    const file = prompt("Upload PDF Proof (Simulated): Enter file name");
-                                                                    if (file) {
-                                                                        setSettledBrands(prev => ({ ...prev, [stat.brand]: true }));
-                                                                        alert(`Settled ${stat.brand}. Proof: ${file}`);
-                                                                    }
-                                                                } else {
-                                                                    setSettledBrands(prev => ({ ...prev, [stat.brand]: false }));
-                                                                }
-                                                            }}
-                                                        >
-                                                            {settledBrands[stat.brand] ? "Undo" : "Settle"}
-                                                            {!settledBrands[stat.brand] && <Upload className="w-3 h-3 text-muted-foreground" />}
-                                                        </Button>
+                                                        {stat.pendingPayout > 0 && (
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                className="h-8 gap-2"
+                                                                onClick={() => handleSettle(stat.brand)}
+                                                            >
+                                                                Settle
+                                                                <Upload className="w-3 h-3 text-muted-foreground" />
+                                                            </Button>
+                                                        )}
                                                     </td>
                                                 </>
                                             )}
