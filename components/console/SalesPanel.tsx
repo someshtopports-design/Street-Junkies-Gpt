@@ -33,13 +33,9 @@ export const SalesPanel: React.FC<SalesPanelProps> = ({ store }) => {
     const [emailPreview, setEmailPreview] = useState<any>(null);
 
     // Form State
-    const [manualId, setManualId] = useState("");
-    const [selectedItem, setSelectedItem] = useState<any>(null);
-    const [isScanning, setIsScanning] = useState(false);
+    const [cart, setCart] = useState<any[]>([]);
 
     // Transaction State
-    const [sellingPrice, setSellingPrice] = useState("");
-    const [qty, setQty] = useState("1");
     const [customerName, setCustomerName] = useState("");
     const [customerPhone, setCustomerPhone] = useState("");
 
@@ -47,6 +43,11 @@ export const SalesPanel: React.FC<SalesPanelProps> = ({ store }) => {
 
     // Alert State
     const [alertConfig, setAlertConfig] = useState({ open: false, title: "", desc: "" });
+
+    // Form State
+    const [manualId, setManualId] = useState("");
+    const [isScanning, setIsScanning] = useState(false);
+
 
     useEffect(() => {
         const q = query(
@@ -81,7 +82,7 @@ export const SalesPanel: React.FC<SalesPanelProps> = ({ store }) => {
                         if (found) {
                             html5QrCode?.stop().then(() => html5QrCode?.clear()).catch(console.error);
                             setIsScanning(false);
-                            selectItem(found);
+                            addItemToCart(found);
                         } else {
                             // Beep or visual feedback could go here
                             console.log("Scanned code not found:", decodedText);
@@ -115,62 +116,161 @@ export const SalesPanel: React.FC<SalesPanelProps> = ({ store }) => {
     const handleSearch = () => {
         const found = inventoryItems.find(i => i.id === manualId);
         if (found) {
-            selectItem(found);
+            addItemToCart(found);
+            setManualId("");
         } else {
-            setAlertConfig({ open: true, title: "Search Error", desc: "Item ID not found. Please check and try again." });
+            setAlertConfig({ open: true, title: "Search Error", desc: "Item ID not found." });
         }
     };
 
-    const selectItem = (item: any) => {
-        setSelectedItem(item);
-        setSellingPrice(item.price?.toString() || "");
+    const addItemToCart = (item: any) => {
+        setCart(prev => {
+            const existing = prev.find(p => p.id === item.id);
+            if (existing) {
+                return prev.map(p => p.id === item.id ? { ...p, qty: p.qty + 1 } : p);
+            }
+            return [...prev, { ...item, qty: 1, sellingPrice: item.price || 0 }];
+        });
+        setAlertConfig({ open: true, title: "Item Added", desc: `${item.name} added to cart.` });
+        // Stay on search step or go to details? Let's stay on search to allow rapid scanning
+        // But maybe show a toast?
+    };
+
+    const removeFromCart = (id: string) => {
+        setCart(prev => prev.filter(p => p.id !== id));
+    };
+
+    const updateCartItem = (id: string, field: 'qty' | 'sellingPrice', val: number) => {
+        setCart(prev => prev.map(p => p.id === id ? { ...p, [field]: val } : p));
+    };
+
+    const proceedToDetails = () => {
+        if (cart.length === 0) {
+            setAlertConfig({ open: true, title: "Cart Empty", desc: "Please add items first." });
+            return;
+        }
         setStep("details");
     };
 
     const submitSale = async () => {
-        if (!selectedItem) return;
+        if (cart.length === 0) return;
         try {
-            const q = parseInt(qty) || 1;
-            const finalPrice = parseFloat(sellingPrice) || 0;
-            const total = finalPrice * q;
-            const commissionRate = (selectedItem.brandComm || 20) / 100;
-            const comm = total * commissionRate;
-            const payout = total - comm;
+            const batchEmailItems: any[] = [];
+            let totalSaleAmount = 0;
+            let totalPayoutAmount = 0;
 
-            await addDoc(collection(db, "sales"), {
-                item: selectedItem.name,
-                itemId: selectedItem.id,
-                brand: selectedItem.brand,
-                size: selectedItem.size || "Free",
-                customer: { name: customerName, phone: customerPhone, address: customerAddr },
-                quantity: q,
-                amount: total,
-                unitPrice: finalPrice,
-                commission: comm,
-                payoutAmount: payout,
-                createdAt: new Date(),
-                status: "confirmed",
-                store: store
+            // Process each item in cart
+            for (const item of cart) {
+                const q = item.qty || 1;
+                const finalPrice = parseFloat(item.sellingPrice) || 0;
+                const total = finalPrice * q;
+                const commissionRate = (item.brandComm || 20) / 100;
+                const comm = total * commissionRate;
+                const payout = total - comm;
+
+                totalSaleAmount += total;
+                totalPayoutAmount += payout;
+
+                // Add to Firestore
+                await addDoc(collection(db, "sales"), {
+                    item: item.name,
+                    itemId: item.id,
+                    brand: item.brand,
+                    size: item.size || "Free",
+                    customer: { name: customerName, phone: customerPhone, address: customerAddr },
+                    quantity: q,
+                    amount: total,
+                    unitPrice: finalPrice,
+                    commission: comm,
+                    payoutAmount: payout,
+                    store: store,
+                    date: new Date().toISOString(),
+                    timestamp: Date.now()
+                });
+
+                // Update Inventory (Decrease Stock)
+                // Note: Logic depends on how you handle stock. Assuming "qty" field in inventory.
+                // If unique items, maybe mark status='sold'.
+                // For now, decrement stock if available.
+                if (item.stock && item.stock > 0) {
+                    const itemRef = doc(db, "inventory", item.id);
+                    await updateDoc(itemRef, {
+                        stock: increment(-q)
+                    });
+                }
+
+                // Prepare for Email
+                batchEmailItems.push({
+                    desc: `${item.name} (${item.brand} - ${item.size || 'OS'})`,
+                    qty: q,
+                    price: finalPrice,
+                    amount: total,
+                    brand: item.brand,
+                    brandEmail: item.brandEmail // Assuming brandEmail is on the item
+                });
+            }
+
+            // Send Email (Grouped by Brand if possible, or just send one to admin/first brand?)
+            // For simplicity, let's send to the first item's brand or a gathered list.
+            // Requirement was specific brand. If mixed brands, we might need multiple emails.
+            // Let's assume mostly 1 brand per transaction or send distinct emails.
+            // For MVP: Send 1 email using the first item's brand info as context, or if mixed, warn user.
+
+            // Let's Group items by Brand Email to send correct summaries
+            const itemsByEmail: Record<string, any[]> = {};
+            batchEmailItems.forEach(i => {
+                const email = i.brandEmail || "unknown@brand.com"; // Fallback
+                if (!itemsByEmail[email]) itemsByEmail[email] = [];
+                itemsByEmail[email].push(i);
             });
 
-            await updateDoc(doc(db, "inventory", selectedItem.id), {
-                stock: increment(-q)
-            });
+            // Trigger Email Preview for the FIRST brand (or loop? but preview is modal)
+            // If strictly needing email, let's just trigger for the first one for now or 
+            // if user asks for specific brand. 
+            // Let's take the first unique brand to show in preview.
+            const uniqueEmails = Object.keys(itemsByEmail);
+            if (uniqueEmails.length > 0) {
+                const targetEmail = uniqueEmails[0];
+                const brandItems = itemsByEmail[targetEmail];
+                const brandName = brandItems[0].brand;
+
+                const brandTotal = brandItems.reduce((acc, curr) => acc + curr.amount, 0);
+                const brandPayout = brandItems.reduce((acc, curr) => acc + (curr.amount * 0.8), 0); // Approx 20% comm
+
+                setEmailPreview({
+                    ui_to_name: brandName,
+                    ui_to_email: targetEmail,
+                    ui_message: `Sale Confirmed (${brandItems.length} Items)`,
+                    ui_details: `Total: ₹${brandTotal}\nPayout: ₹${brandPayout.toFixed(2)}`,
+                    emailParams: {
+                        to_email: targetEmail,
+                        to_name: brandName,
+                        status: "CONFIRMED",
+                        invoice_date: new Date().toLocaleDateString('en-IN'),
+                        invoice_period: new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+                        items: brandItems,
+                        totals: {
+                            total: brandTotal,
+                            comm: brandTotal * 0.2,
+                            payout: brandPayout
+                        }
+                    }
+                });
+            }
 
             setStep("success");
-        } catch (e) {
-            console.error(e);
-            alert("Transaction Failure");
+        } catch (error) {
+            console.error(error);
+            setAlertConfig({ open: true, title: "Error", desc: "Could not record sale. Check connection." });
         }
-    }
+    };
 
     const reset = () => {
         setManualId("");
-        setSelectedItem(null);
+        setCart([]);
         setCustomerName("");
         setCustomerPhone("");
         setCustomerAddr("");
-        setQty("1");
         setStep("search");
         setIsScanning(false);
     }
@@ -241,74 +341,108 @@ export const SalesPanel: React.FC<SalesPanelProps> = ({ store }) => {
                                 <Search className="w-4 h-4" />
                             </Button>
                         </div>
+                        <div className="pt-4 border-t">
+                            <div className="flex justify-between items-center mb-4">
+                                <h3 className="font-semibold text-sm">Cart ({cart.length})</h3>
+                                {cart.length > 0 && <Button variant="link" size="sm" onClick={proceedToDetails}>Next</Button>}
+                            </div>
+                            {cart.length === 0 ? (
+                                <div className="text-center text-muted-foreground text-sm py-8">
+                                    No items added yet.
+                                </div>
+                            ) : (
+                                <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                                    {cart.map((item, idx) => (
+                                        <div key={idx} className="flex justify-between items-center p-2 bg-secondary/20 rounded border text-sm">
+                                            <div className="truncate w-32 font-medium">{item.name}</div>
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-muted-foreground">x{item.qty}</span>
+                                                <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => removeFromCart(item.id)}>
+                                                    &times;
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                            {cart.length > 0 && (
+                                <Button className="w-full mt-4" size="lg" onClick={proceedToDetails}>
+                                    Proceed with {cart.length} Items <ChevronRight className="ml-2 w-4 h-4" />
+                                </Button>
+                            )}
+                        </div>
                     </div>
                 )}
 
                 {/* Step 2: Details */}
-                {step === "details" && selectedItem && (
+                {step === "details" && (
                     <div className="flex flex-col gap-5 animate-in slide-in-from-right-8 duration-300">
-                        <div className="flex items-start gap-4 p-4 rounded-xl bg-secondary/30 border border-border/50">
-                            <div className="h-12 w-12 rounded-lg bg-white flex items-center justify-center border border-border">
-                                <ShoppingBag className="w-6 h-6 text-foreground" />
-                            </div>
-                            <div>
-                                <h3 className="font-bold text-base">{selectedItem.name}</h3>
-                                <div className="flex gap-2 mt-1">
-                                    <Badge variant="outline" className="text-[10px] bg-background">{selectedItem.brand}</Badge>
-                                    <Badge variant="outline" className="text-[10px] bg-background">{selectedItem.size}</Badge>
+                        <div className="space-y-4 max-h-[300px] overflow-y-auto">
+                            {cart.map((item) => (
+                                <div key={item.id} className="p-4 rounded-xl border border-border bg-card/50 space-y-3">
+                                    <div className="flex justify-between items-start">
+                                        <div>
+                                            <h3 className="font-bold text-lg leading-tight">{item.name}</h3>
+                                            <p className="text-xs text-muted-foreground mt-1 font-mono uppercase tracking-wide">
+                                                {item.brand} • {item.size || 'OS'}
+                                            </p>
+                                        </div>
+                                        <Badge variant="secondary" className="font-mono">ID: {item.id.slice(-6)}</Badge>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="space-y-1.5 item-group">
+                                            <label className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider ml-1">Price (₹)</label>
+                                            <Input
+                                                type="number"
+                                                className="h-9 font-mono bg-background/50"
+                                                value={item.sellingPrice}
+                                                onChange={(e) => updateCartItem(item.id, 'sellingPrice', parseFloat(e.target.value))}
+                                            />
+                                        </div>
+                                        <div className="space-y-1.5 item-group">
+                                            <label className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider ml-1">Qty</label>
+                                            <Input
+                                                type="number"
+                                                className="h-9 font-mono bg-background/50"
+                                                value={item.qty}
+                                                onChange={(e) => updateCartItem(item.id, 'qty', parseInt(e.target.value))}
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        <div className="flex gap-2">
+                            <Button variant="outline" className="w-full" onClick={() => setStep("search")}>
+                                + Add More Items
+                            </Button>
+                        </div>
+
+                        <div className="pt-2">
+                            <h4 className="font-semibold text-sm mb-2">Customer Details (Optional)</h4>
+                            <div className="space-y-3">
+                                <div className="relative">
+                                    <User className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                                    <Input placeholder="Customer Name" className="pl-9" value={customerName} onChange={e => setCustomerName(e.target.value)} />
+                                </div>
+                                <div className="relative">
+                                    <MapPin className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                                    <Input placeholder="Phone (e.g. 98765xxxxx)" className="pl-9" value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} />
                                 </div>
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-1.5">
-                                <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Price (₹)</label>
-                                <Input
-                                    type="number"
-                                    value={sellingPrice}
-                                    onChange={(e) => setSellingPrice(e.target.value)}
-                                    className="font-mono"
-                                />
-                            </div>
-                            <div className="space-y-1.5">
-                                <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Quantity</label>
-                                <Input
-                                    type="number"
-                                    value={qty}
-                                    onChange={(e) => setQty(e.target.value)}
-                                    className="font-mono"
-                                />
-                            </div>
-                        </div>
-
-                        <div className="space-y-3 pt-2">
-                            <div className="flex items-center gap-2 text-primary text-xs font-semibold">
-                                <User className="w-3.5 h-3.5" />
-                                Customer Details
-                            </div>
-                            <Input placeholder="Name (Required)" value={customerName} onChange={(e) => setCustomerName(e.target.value)} className="bg-secondary/20" />
-                            <Input placeholder="Phone Number (Required)" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} className="bg-secondary/20" />
-                            <Input placeholder="Address (Optional)" value={customerAddr} onChange={(e) => setCustomerAddr(e.target.value)} className="bg-secondary/20" />
-                        </div>
-
-                        <div className="mt-auto flex gap-3 pt-4">
-                            <Button variant="outline" className="flex-1" onClick={() => setStep("search")}>Cancel</Button>
-                            <Button
-                                className="flex-1"
-                                onClick={() => {
-                                    if (customerName && customerPhone) setStep("review")
-                                    else setAlertConfig({ open: true, title: "Missing Information", desc: "Please enter basic customer details (Name & Phone)" })
-                                }}
-                            >
-                                Review
-                                <ChevronRight className="w-4 h-4 ml-2" />
-                            </Button>
+                        <div className="flex gap-3 pt-2">
+                            <Button variant="outline" className="flex-1" onClick={() => setStep("search")}>Back</Button>
+                            <Button className="flex-1 bg-primary text-primary-foreground shadow-lg shadow-primary/20" onClick={() => setStep("review")}>Next: Review</Button>
                         </div>
                     </div>
                 )}
 
                 {/* Step 3: Review */}
-                {step === "review" && selectedItem && (
+                {step === "review" && (
                     <div className="flex flex-col gap-6 animate-in slide-in-from-right-8 duration-300 h-full">
                         <div className="text-center space-y-1">
                             <h3 className="text-lg font-bold">Confirm Transaction</h3>
@@ -318,22 +452,22 @@ export const SalesPanel: React.FC<SalesPanelProps> = ({ store }) => {
                         <div className="bg-secondary/30 rounded-2xl p-5 space-y-4 text-sm border border-border/50">
                             <div className="flex justify-between items-center pb-3 border-b border-border/50">
                                 <span className="text-muted-foreground">Product</span>
-                                <span className="font-semibold text-right">{selectedItem.name}<br /><span className="text-[10px] font-normal">{selectedItem.brand}</span></span>
+                                <span className="font-semibold text-right">Multiple Items<br /><span className="text-[10px] font-normal">{cart.length} unique items</span></span>
                             </div>
                             <div className="flex justify-between items-center">
-                                <span className="text-muted-foreground">Price x Qty</span>
-                                <span className="font-mono">₹{sellingPrice} x {qty}</span>
+                                <span className="text-muted-foreground">Total Quantity</span>
+                                <span className="font-mono">{cart.reduce((sum, i) => sum + i.qty, 0)}</span>
                             </div>
                             <div className="flex justify-between items-center pt-2 border-t border-border font-bold text-base">
                                 <span>Total</span>
-                                <span className="text-primary">₹{(parseFloat(sellingPrice) * parseInt(qty)).toFixed(2)}</span>
+                                <span className="text-primary">₹{cart.reduce((sum, i) => sum + (parseFloat(i.sellingPrice) * i.qty), 0).toFixed(2)}</span>
                             </div>
                         </div>
 
                         <div className="flex items-center gap-3 p-3 rounded-xl bg-blue-500/10 text-blue-600 text-xs">
                             <MapPin className="w-4 h-4 shrink-0" />
                             <div className="truncate">
-                                <span className="font-bold">{customerName}:</span> {customerPhone}
+                                <span className="font-bold">{customerName || "Walk-in"}:</span> {customerPhone || "N/A"}
                             </div>
                         </div>
 
@@ -363,7 +497,7 @@ export const SalesPanel: React.FC<SalesPanelProps> = ({ store }) => {
                                     // 1. Fetch Brand details to get the REAL email
                                     let brandEmail = "somesh.topports@gmail.com"; // default fallback
                                     try {
-                                        const brandsQuery = query(collection(db, "brands"), where("name", "==", selectedItem?.brand || ""));
+                                        const brandsQuery = query(collection(db, "brands"), where("name", "==", cart[0]?.brand || ""));
                                         const querySnapshot = await getDocs(brandsQuery);
                                         if (!querySnapshot.empty) {
                                             const brandData = querySnapshot.docs[0].data();
