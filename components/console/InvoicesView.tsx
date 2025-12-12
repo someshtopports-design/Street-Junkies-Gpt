@@ -130,21 +130,38 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ store }) => {
               </tr>
             `).join("");
 
+        // 3. Generate Full HTML Programmatically
+        const { generateInvoiceHtml } = await import("@/lib/invoiceTemplate");
+        const fullHtml = generateInvoiceHtml({
+            to_name: brand,
+            to_email: brandEmail,
+            statement_for: timeLabel,
+            items: filtered
+                .filter(s => s.brand === brand)
+                .map(s => ({
+                    desc: `${s.item} (ID: ${s.id?.slice(-6) || 'N/A'})`,
+                    qty: s.quantity || 1,
+                    price: parseFloat(String(s.unitPrice || s.amount).replace(/[^0-9.]/g, '')), // safe parse
+                    amount: parseFloat(String(s.amount).replace(/[^0-9.]/g, ''))
+                })),
+            totals: {
+                total: specificTotal,
+                comm: data.comm,
+                payout: specificPayout
+            }
+        });
+
         setEmailPreview({
             ui_to_name: brand,
             ui_to_email: brandEmail,
             ui_message: `Invoice Report (${store})\nPeriod: ${timeLabel}`,
             ui_details: `Total Sales Volume: ₹${specificTotal.toLocaleString()}\nCommission Deducted: ₹${data.comm.toLocaleString()}\n\nNET PAYOUT AMOUNT: ₹${specificPayout.toLocaleString()}`,
 
-            // V2 Params
+            // "Nuclear" Option
             emailParams: {
-                to_name: brand,
                 to_email: brandEmail,
-                statement_for: timeLabel,
-                rows_html: rowsHtml,
-                total_val: `₹${specificTotal.toLocaleString()}`,
-                comm_val: `₹${data.comm.toLocaleString()}`,
-                payout_val: `₹${specificPayout.toLocaleString()}`
+                to_name: brand,
+                html_message: fullHtml // <--- THE MAGIC KEY
             }
         });
     };

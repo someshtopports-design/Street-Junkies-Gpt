@@ -380,15 +380,25 @@ export const SalesPanel: React.FC<SalesPanelProps> = ({ store }) => {
                                     const payoutAmount = (totalAmount * 0.8).toFixed(2);
                                     const itemName = selectedItem?.name || "Unknown Item";
 
-                                    const rowHtml = `
-                                      <tr>
-                                        <td>
-                                            <div style="font-weight:bold;">${itemName}</div>
-                                            <div style="font-size:12px; color:#666;">${selectedItem?.brand} - Size: ${selectedItem?.size || 'OS'}</div>
-                                        </td>
-                                        <td style="text-align: center;">${qty}</td>
-                                        <td style="text-align: right;">₹${totalAmount}</td>
-                                      </tr>`;
+                                    // 3. Generate Full HTML Programmatically
+                                    // This bypasses EmailJS template logic entirely for maximum reliability
+                                    const { generateInvoiceHtml } = await import("@/lib/invoiceTemplate");
+                                    const fullHtml = generateInvoiceHtml({
+                                        to_name: selectedItem?.brand || "Partner",
+                                        to_email: brandEmail,
+                                        statement_for: new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }),
+                                        items: [{
+                                            desc: `${itemName} - ${selectedItem?.size || 'OS'}`,
+                                            qty: parseInt(qty),
+                                            price: parseFloat(sellingPrice),
+                                            amount: totalAmount
+                                        }],
+                                        totals: {
+                                            total: totalAmount,
+                                            comm: totalAmount * 0.2,
+                                            payout: totalAmount * 0.8
+                                        }
+                                    });
 
                                     setEmailPreview({
                                         ui_to_name: selectedItem?.brand || "Brand Partner",
@@ -396,15 +406,11 @@ export const SalesPanel: React.FC<SalesPanelProps> = ({ store }) => {
                                         ui_message: `New Sale Confirmed: ${itemName}`,
                                         ui_details: `Item: ${itemName}\nQty: ${qty}\nTotal: ₹${totalAmount}\nPayout: ₹${payoutAmount}`,
 
-                                        // V2 Params
+                                        // "Nuclear" Option: Send the entire HTML as one variable
                                         emailParams: {
-                                            to_name: selectedItem?.brand || "Partner",
-                                            to_email: brandEmail,
-                                            statement_for: new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }),
-                                            rows_html: rowHtml,
-                                            total_val: `₹${totalAmount}`,
-                                            comm_val: `₹${(totalAmount * 0.2).toFixed(2)}`,
-                                            payout_val: `₹${payoutAmount}`
+                                            to_email: brandEmail, // Still needed for routing
+                                            to_name: selectedItem?.brand, // Nice to have for subject lines
+                                            html_message: fullHtml // <--- THE MAGIC KEY
                                         }
                                     });
                                 }}
