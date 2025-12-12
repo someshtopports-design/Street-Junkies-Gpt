@@ -27,13 +27,17 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ store }) => {
     const [alertConfig, setAlertConfig] = useState({ open: false, title: "", desc: "" });
 
     React.useEffect(() => {
-        const q = query(collection(db, "sales"), orderBy("createdAt", "desc"));
+        const q = query(
+            collection(db, "sales"),
+            where("store", "==", store),
+            orderBy("createdAt", "desc")
+        );
         const unsub = onSnapshot(q, snap => {
             setSales(snap.docs.map(d => ({ id: d.id, ...d.data() })));
             setLoading(false);
         });
         return () => unsub();
-    }, []);
+    }, [store]);
 
     const filtered = useMemo(() => {
         return sales.filter(s => {

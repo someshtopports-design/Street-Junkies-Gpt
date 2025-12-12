@@ -49,13 +49,20 @@ export const SalesPanel: React.FC<SalesPanelProps> = ({ store }) => {
     const [alertConfig, setAlertConfig] = useState({ open: false, title: "", desc: "" });
 
     useEffect(() => {
-        const q = query(collection(db, "inventory"));
+        const q = query(
+            collection(db, "inventory"),
+            where("store", "==", store)
+        );
         const unsub = onSnapshot(q, snap => {
-            setInventoryItems(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+            // Optional: Filter out archived items
+            const activeItems = snap.docs
+                .map(d => ({ id: d.id, ...d.data() } as any))
+                .filter(item => item.status !== 'archived');
+            setInventoryItems(activeItems);
             setLoading(false);
         });
         return () => unsub();
-    }, []);
+    }, [store]);
 
     useEffect(() => {
         if (isScanning && step === 'search') {
@@ -194,10 +201,10 @@ export const SalesPanel: React.FC<SalesPanelProps> = ({ store }) => {
                                 <div className="w-full p-4 flex flex-col items-center">
                                     <div id="reader" className="w-full max-w-[300px] overflow-hidden rounded-lg"></div>
                                     <Button
-                                        variant="ghost"
+                                        variant="destructive"
                                         size="sm"
                                         onClick={() => setIsScanning(false)}
-                                        className="mt-4 text-red-500 hover:text-red-600 hover:bg-red-50"
+                                        className="mt-4"
                                     >
                                         Stop Scanner
                                     </Button>

@@ -3,6 +3,20 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Search, Bell, Sun, Moon, LogOut, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+    collection,
+    query,
+    where,
+    onSnapshot,
+    orderBy,
+    limit
+} from "firebase/firestore";
+import { db } from "@/lib/firebase";
 
 interface ConsoleHeaderProps {
     role: string | null;
@@ -10,9 +24,47 @@ interface ConsoleHeaderProps {
     theme: "dark" | "light";
     onToggleTheme: () => void;
     onMenuClick?: () => void;
+    store: string | null;
 }
 
-export const ConsoleHeader: React.FC<ConsoleHeaderProps> = ({ role, onLogout, theme, onToggleTheme, onMenuClick }) => {
+export const ConsoleHeader: React.FC<ConsoleHeaderProps> = ({ role, onLogout, theme, onToggleTheme, onMenuClick, store }) => {
+    const [notifications, setNotifications] = React.useState<any[]>([]);
+    const [unreadCount, setUnreadCount] = React.useState(0);
+
+    React.useEffect(() => {
+        if (!store) return;
+
+        // 1. Low Stock Notifications
+        const qStock = query(collection(db, "inventory"), where("store", "==", store), where("stock", "<", 5));
+
+        // 2. Pending Payouts (High Value > 5000) - Just as an example of an "alert"
+        const qSales = query(collection(db, "sales"), where("store", "==", store), where("payoutStatus", "!=", "settled"), where("amount", ">", 5000));
+
+        const unsubStock = onSnapshot(qStock, (snap) => {
+            const lowStockItems = snap.docs.map(doc => ({
+                id: doc.id,
+                type: 'low_stock',
+                title: 'Low Stock Alert',
+                message: `${doc.data().name} (${doc.data().size}) is low on stock (${doc.data().stock}).`,
+                time: new Date()
+            }));
+
+            // Combine with whatever logic, for now simple state update
+            setNotifications(prev => {
+                // Filter out old low_stock to avoid dupes if logic gets complex, but full replace is fine for this demo
+                const others = prev.filter(n => n.type !== 'low_stock');
+                return [...others, ...lowStockItems];
+            });
+        });
+
+        return () => {
+            unsubStock();
+        };
+    }, [store]);
+
+    React.useEffect(() => {
+        setUnreadCount(notifications.length);
+    }, [notifications]);
     return (
         <header className="sticky top-0 z-40 w-full glass">
             <div className="max-w-[1400px] mx-auto flex h-16 items-center justify-between px-4 md:px-6 gap-4">
@@ -58,10 +110,40 @@ export const ConsoleHeader: React.FC<ConsoleHeaderProps> = ({ role, onLogout, th
                         {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
                     </Button>
 
-                    <Button variant="ghost" size="icon" className="relative rounded-xl h-9 w-9 text-muted-foreground hover:text-foreground">
-                        <Bell className="w-4 h-4" />
-                        <span className="absolute top-2 right-2.5 h-1.5 w-1.5 rounded-full bg-red-500 border border-background"></span>
-                    </Button>
+                    <Popover>
+                        <PopoverTrigger asChild>
+                            <Button variant="ghost" size="icon" className="relative rounded-xl h-9 w-9 text-muted-foreground hover:text-foreground">
+                                <Bell className="w-4 h-4" />
+                                {unreadCount > 0 && <span className="absolute top-2 right-2.5 h-1.5 w-1.5 rounded-full bg-red-500 border border-background"></span>}
+                            </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-80 p-0 mr-4" align="end">
+                            <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/30">
+                                <h4 className="font-semibold text-sm">Notifications</h4>
+                                <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded-full font-mono">{unreadCount} new</span>
+                            </div>
+                            <div className="max-h-[300px] overflow-y-auto">
+                                {notifications.length === 0 ? (
+                                    <div className="p-8 text-center text-muted-foreground text-sm">
+                                        No new notifications
+                                    </div>
+                                ) : (
+                                    <div className="divide-y divide-border/50">
+                                        {notifications.map((n, i) => (
+                                            <div key={i} className="p-3 hover:bg-muted/50 transition-colors cursor-pointer flex gap-3 items-start">
+                                                <div className="h-2 w-2 mt-1.5 rounded-full bg-orange-500 shrink-0" />
+                                                <div className="space-y-1">
+                                                    <p className="text-sm font-medium leading-none">{n.title}</p>
+                                                    <p className="text-xs text-muted-foreground line-clamp-2">{n.message}</p>
+                                                    <p className="text-[10px] text-muted-foreground/60">{n.time.toLocaleTimeString()}</p>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </PopoverContent>
+                    </Popover>
 
                     <Button
                         variant="ghost"
