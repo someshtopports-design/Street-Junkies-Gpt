@@ -35,18 +35,27 @@ export const InventoryView: React.FC<InventoryViewProps> = ({ store }) => {
     const [alertConfig, setAlertConfig] = useState({ open: false, title: "", desc: "" });
 
     useEffect(() => {
+        // Query without sorting first to avoid Missing Index issues
         const q = query(
             collection(db, "inventory"),
-            where("store", "==", store),
-            orderBy("createdAt", "desc")
+            where("store", "==", store)
         );
         const unsubInv = onSnapshot(q, (snap) => {
-            // Client-side filter for "archived" status if not in query (for backward compatibility), or add where clause
-            // Better to client filter if mixed data, but let's assume we filter out archived
-            const allItems = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            setItems(allItems.filter((i: any) => i.status !== 'archived'));
+            const allItems = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
+            // Client-side sort
+            allItems.sort((a, b) => {
+                const tA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : 0;
+                const tB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : 0;
+                return tB - tA; // Descending
+            });
+            // Filter archived
+            setItems(allItems.filter(i => i.status !== 'archived' && i.status !== 'deleted'));
+            setLoading(false);
+        }, (error) => {
+            console.error("Inventory Fetch Error:", error);
             setLoading(false);
         });
+
         const unsubBrands = onSnapshot(query(collection(db, "brands"), orderBy("name")), (snap) => {
             setBrands(snap.docs.map(d => ({ id: d.id, ...d.data() })));
         });
