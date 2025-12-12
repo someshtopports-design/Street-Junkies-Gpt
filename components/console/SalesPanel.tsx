@@ -380,11 +380,36 @@ export const SalesPanel: React.FC<SalesPanelProps> = ({ store }) => {
                                     const payoutAmount = (totalAmount * 0.8).toFixed(2);
                                     const itemName = selectedItem?.name || "Unknown Item";
 
+                                    const rowHtml = `
+                                      <tr>
+                                        <td style="border:1px solid #ddd;">${itemName} (${selectedItem?.size || '-'})</td>
+                                        <td style="border:1px solid #ddd; text-align:center;">₹${sellingPrice}</td>
+                                        <td style="border:1px solid #ddd; text-align:center;">${qty}</td>
+                                        <td style="border:1px solid #ddd; text-align:right;">₹${totalAmount}</td>
+                                      </tr>`;
+
                                     setEmailPreview({
-                                        to_name: selectedItem?.brand || "Brand Partner",
-                                        to_email: brandEmail,
-                                        message: `New Sale Confirmed: ${itemName}`,
-                                        invoice_details: `Store: ${store}\nItem: ${itemName}\nQty: ${qty}\nUnit Price: ₹${sellingPrice}\nTotal Sales: ₹${totalAmount}\nNet Payout: ₹${payoutAmount}\nDate: ${new Date().toLocaleDateString()}`
+                                        ui_to_name: selectedItem?.brand || "Brand Partner",
+                                        ui_to_email: brandEmail,
+                                        ui_message: `New Sale Confirmed: ${itemName}`,
+                                        ui_details: `Item: ${itemName}\nQty: ${qty}\nTotal: ₹${totalAmount}\nPayout: ₹${payoutAmount}`,
+                                        emailParams: {
+                                            to_name: selectedItem?.brand || "Partner",
+                                            status: "CONFIRMED",
+                                            status_bg: "#e6fffa",
+                                            status_border: "#b2f5ea",
+                                            status_text: "#2c7a7b",
+                                            statement_month: new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+                                            from_address: "New Delhi",
+                                            to_address: brandEmail,
+                                            items_rows: rowHtml,
+                                            total_amount: `₹${totalAmount}`,
+                                            commission_percent: "20",
+                                            commission_amount: `₹${(totalAmount * 0.2).toFixed(2)}`,
+                                            payout_amount: `₹${payoutAmount}`,
+                                            approved_by: "Admin",
+                                            approved_title: "Street Junkies Team"
+                                        }
                                     });
                                 }}
                                 className="w-full bg-white text-black border border-gray-200 hover:bg-gray-50 shadow-sm"
@@ -410,18 +435,18 @@ export const SalesPanel: React.FC<SalesPanelProps> = ({ store }) => {
                             <div className="p-4 space-y-3 text-sm">
                                 <div className="grid grid-cols-[60px_1fr] gap-2">
                                     <span className="text-muted-foreground text-right">To:</span>
-                                    <span className="font-medium">{emailPreview.to_name}</span>
+                                    <span className="font-medium">{emailPreview.ui_to_name}</span>
 
                                     <span className="text-muted-foreground text-right">Email:</span>
-                                    <span className="font-mono text-xs">{emailPreview.to_email}</span>
+                                    <span className="font-mono text-xs">{emailPreview.ui_to_email}</span>
 
                                     <span className="text-muted-foreground text-right">Subject:</span>
-                                    <span className="truncate">Invoice for {emailPreview.to_name}...</span>
+                                    <span className="truncate">Invoice for {emailPreview.ui_to_name}...</span>
                                 </div>
                                 <div className="bg-secondary/20 p-3 rounded-lg text-xs font-mono text-muted-foreground whitespace-pre-wrap border border-border/50">
-                                    {emailPreview.message}
+                                    {emailPreview.ui_message}
                                     {"\n\n"}
-                                    {emailPreview.invoice_details}
+                                    {emailPreview.ui_details}
                                 </div>
                             </div>
                             <div className="p-3 bg-muted/30 border-t border-border flex gap-2 justify-end">
@@ -439,8 +464,8 @@ export const SalesPanel: React.FC<SalesPanelProps> = ({ store }) => {
                                     onClick={async () => {
                                         try {
                                             const { sendInvoiceEmail } = await import("@/lib/emailService");
-                                            await sendInvoiceEmail(emailPreview);
-                                            setAlertConfig({ open: true, title: "Email Sent", desc: `Invoice sent successfully to ${emailPreview.to_email}!` });
+                                            await sendInvoiceEmail(emailPreview.emailParams);
+                                            setAlertConfig({ open: true, title: "Email Sent", desc: `Invoice sent successfully to ${emailPreview.ui_to_email}!` });
                                             setEmailPreview(null);
                                         } catch (e) {
                                             console.error(e);

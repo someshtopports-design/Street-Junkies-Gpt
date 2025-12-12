@@ -116,11 +116,41 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ store }) => {
         const specificPayout = data.payout || 0;
         const specificTotal = data.total || 0;
 
+        // Generate Rows HTML for the list of items
+        const rowsHtml = filtered
+            .filter(s => s.brand === brand) // Ensure we only dump rows for this brand
+            .map(s => `
+              <tr>
+                <td style="border:1px solid #ddd;">${s.item}</td>
+                <td style="border:1px solid #ddd; text-align:center;">₹${s.unitPrice || s.amount}</td>
+                <td style="border:1px solid #ddd; text-align:center;">${s.quantity || 1}</td>
+                <td style="border:1px solid #ddd; text-align:right;">₹${s.amount}</td>
+              </tr>
+            `).join("");
+
         setEmailPreview({
-            to_name: brand,
-            to_email: brandEmail,
-            message: `Invoice Report (${store})\nPeriod: ${timeLabel}`,
-            invoice_details: `Total Sales Volume: ₹${specificTotal.toLocaleString()}\nCommission Deducted: ₹${data.comm.toLocaleString()}\n\nNET PAYOUT AMOUNT: ₹${specificPayout.toLocaleString()}`
+            ui_to_name: brand,
+            ui_to_email: brandEmail,
+            ui_message: `Invoice Report (${store})\nPeriod: ${timeLabel}`,
+            ui_details: `Total Sales Volume: ₹${specificTotal.toLocaleString()}\nCommission Deducted: ₹${data.comm.toLocaleString()}\n\nNET PAYOUT AMOUNT: ₹${specificPayout.toLocaleString()}`,
+            emailParams: {
+                to_name: brand,
+                to_email: brandEmail,
+                status: "GENERATED",
+                status_bg: "#ebf8ff",
+                status_border: "#bee3f8",
+                status_text: "#2b6cb0",
+                statement_month: timeLabel,
+                from_address: "New Delhi",
+                to_address: brandEmail,
+                items_rows: rowsHtml,
+                total_amount: `₹${specificTotal.toLocaleString()}`,
+                commission_percent: "20",
+                commission_amount: `₹${data.comm.toLocaleString()}`,
+                payout_amount: `₹${specificPayout.toLocaleString()}`,
+                approved_by: "Admin",
+                approved_title: "Street Junkies Team"
+            }
         });
     };
 
@@ -284,18 +314,18 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ store }) => {
                     <div className="p-4 space-y-3 text-sm">
                         <div className="grid grid-cols-[60px_1fr] gap-2">
                             <span className="text-muted-foreground text-right">To:</span>
-                            <span className="font-medium">{emailPreview?.to_name}</span>
+                            <span className="font-medium">{emailPreview?.ui_to_name}</span>
 
                             <span className="text-muted-foreground text-right">Email:</span>
-                            <span className="font-mono text-xs">{emailPreview?.to_email}</span>
+                            <span className="font-mono text-xs">{emailPreview?.ui_to_email}</span>
 
                             <span className="text-muted-foreground text-right">Subject:</span>
-                            <span className="truncate">Invoice for {emailPreview?.to_name}...</span>
+                            <span className="truncate">Invoice for {emailPreview?.ui_to_name}...</span>
                         </div>
                         <div className="bg-secondary/20 p-3 rounded-lg text-xs font-mono text-muted-foreground whitespace-pre-wrap border border-border/50">
-                            {emailPreview?.message}
+                            {emailPreview?.ui_message}
                             {"\n\n"}
-                            {emailPreview?.invoice_details}
+                            {emailPreview?.ui_details}
                         </div>
                     </div>
                     <div className="p-3 bg-muted/30 border-t border-border flex gap-2 justify-end">
@@ -313,8 +343,8 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ store }) => {
                             onClick={async () => {
                                 try {
                                     const { sendInvoiceEmail } = await import("@/lib/emailService");
-                                    await sendInvoiceEmail(emailPreview);
-                                    setAlertConfig({ open: true, title: "Email Sent", desc: `Invoice sent successfully to ${emailPreview?.to_email}!` });
+                                    await sendInvoiceEmail(emailPreview.emailParams);
+                                    setAlertConfig({ open: true, title: "Email Sent", desc: `Invoice sent successfully to ${emailPreview?.ui_to_email}!` });
                                     setEmailPreview(null);
                                 } catch (e) {
                                     console.error(e);
