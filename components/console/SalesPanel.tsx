@@ -17,7 +17,7 @@ import { collection, query, onSnapshot, addDoc, doc, updateDoc, increment, getDo
 
 import { db } from "@/lib/firebase";
 
-import { Html5QrcodeScanner } from "html5-qrcode";
+import { Html5Qrcode } from "html5-qrcode";
 import { AppAlertDialog } from "@/components/ui/app-dialogs";
 
 interface SalesPanelProps {
@@ -65,36 +65,49 @@ export const SalesPanel: React.FC<SalesPanelProps> = ({ store }) => {
     }, [store]);
 
     useEffect(() => {
+        let html5QrCode: Html5Qrcode | undefined;
+
         if (isScanning && step === 'search') {
-            const scanner = new Html5QrcodeScanner(
-                "reader",
-                { fps: 10, qrbox: { width: 250, height: 250 } },
-                false
-            );
+            // Small delay to ensure DOM element exists
+            const timer = setTimeout(() => {
+                html5QrCode = new Html5Qrcode("reader");
+                const config = { fps: 10, qrbox: { width: 250, height: 250 } };
 
-            const onScanSuccess = (decodedText: string) => {
-                const found = inventoryItems.find(i => i.id === decodedText);
-                if (found) {
-                    scanner.clear();
+                html5QrCode.start(
+                    { facingMode: "environment" },
+                    config,
+                    (decodedText) => {
+                        const found = inventoryItems.find(i => i.id === decodedText);
+                        if (found) {
+                            html5QrCode?.stop().then(() => html5QrCode?.clear()).catch(console.error);
+                            setIsScanning(false);
+                            selectItem(found);
+                        } else {
+                            // Beep or visual feedback could go here
+                            console.log("Scanned code not found:", decodedText);
+                            // Don't stop scanning immediately on fail, allows retry
+                            // But for immediate feedback, maybe alert? 
+                            // Let's stop to prevent endless alerting
+                            html5QrCode?.stop().then(() => html5QrCode?.clear()).catch(console.error);
+                            setAlertConfig({ open: true, title: "Scan Error", desc: "Item not found in inventory." });
+                            setIsScanning(false);
+                        }
+                    },
+                    (errorMessage) => {
+                        // ignore frame errors
+                    }
+                ).catch(err => {
+                    console.error("Error starting scanner", err);
+                    setAlertConfig({ open: true, title: "Camera Error", desc: "Could not start camera. Please ensure permissions are granted." });
                     setIsScanning(false);
-                    selectItem(found);
-                } else {
-                    // Optional: Provide feedback for invalid scan or keep scanning
-                    console.log("Scanned code not found in inventory:", decodedText);
-                    setAlertConfig({ open: true, title: "Scan Error", desc: "Item not found in inventory." });
-                    setIsScanning(false);
-                    scanner.clear();
-                }
-            };
-
-            const onScanFailure = (error: any) => {
-                // console.warn(`Code scan error = ${error}`);
-            };
-
-            scanner.render(onScanSuccess, onScanFailure);
+                });
+            }, 100);
 
             return () => {
-                scanner.clear().catch(console.error);
+                clearTimeout(timer);
+                if (html5QrCode && html5QrCode.isScanning) {
+                    html5QrCode.stop().then(() => html5QrCode?.clear()).catch(console.error);
+                }
             };
         }
     }, [isScanning, step, inventoryItems]);

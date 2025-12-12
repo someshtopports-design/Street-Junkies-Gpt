@@ -249,7 +249,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({ store }) => {
                                 <th className="px-2 py-2.5 font-semibold w-16 text-center">Size</th>
                                 <th className="px-2 py-2.5 font-semibold w-16 text-center">Stock</th>
                                 <th className="px-4 py-2.5 font-semibold w-24 text-right">Price</th>
-                                <th className="px-2 py-2.5 font-semibold w-12 text-center">QR</th>
+                                <th className="px-2 py-2.5 font-semibold w-28 text-center">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-border/40">
