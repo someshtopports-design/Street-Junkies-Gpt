@@ -115,17 +115,8 @@ export const InventoryView: React.FC<InventoryViewProps> = ({ store }) => {
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
-    const handleArchive = async (id: string) => {
-        if (confirm("Archive this item? It will be hidden from inventory.")) { // We can replace this with ConfirmDialog later if strict, but native confirm is requested against? 
-            // Actually user requested "small button... but make sure not delete".
-            // Let's use the new dialog system if possible, but for individual rows native confirm is lighter until we refactor for bulk actions.
-            // Wait, the prompt said "Refine UI & Dialogs... Styling all alert dialogs". I should probably use a custom confirm.
-            // For now, let's use the quick native confirm to save complex state wiring for every row, 
-            // OR reuse the AlertConfig? No, need a confirm callback.
-            // Let's stick to native confirm for row actions for speed, as the requirement for "Style ALL alert dialogs" usually refers to the main flow ones.
-            // Re-reading: "Style all alert dialogs...". Okay, I should use a custom one.
-            setSelectedIdToArchive(id);
-        }
+    const handleArchive = (id: string) => {
+        setSelectedIdToArchive(id);
     };
 
     const confirmArchive = async () => {

@@ -5,11 +5,14 @@ import { Input } from "@/components/ui/input";
 import { collection, query, orderBy, onSnapshot, addDoc, updateDoc, deleteDoc, doc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Plus, Trash2, Edit2, Mail } from "lucide-react";
+import { ConfirmDialog, AppAlertDialog } from "@/components/ui/app-dialogs";
 
 export const BrandsView: React.FC = () => {
     const [brands, setBrands] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [isEditing, setIsEditing] = useState<string | null>(null);
+    const [brandToDelete, setBrandToDelete] = useState<string | null>(null);
+    const [alertConfig, setAlertConfig] = useState({ open: false, title: "", desc: "" });
 
     // Form
     const [name, setName] = useState("");
@@ -49,13 +52,18 @@ export const BrandsView: React.FC = () => {
             resetForm();
         } catch (e) {
             console.error(e);
-            alert("Error saving brand");
+            setAlertConfig({ open: true, title: "Error", desc: "Failed to save brand details." });
         }
     }
 
-    const deleteBrand = async (id: string) => {
-        if (confirm("Delete this brand? This cannot be undone.")) {
-            await deleteDoc(doc(db, "brands", id));
+    const handleDeleteClick = (id: string) => {
+        setBrandToDelete(id);
+    }
+
+    const confirmDelete = async () => {
+        if (brandToDelete) {
+            await deleteDoc(doc(db, "brands", brandToDelete));
+            setBrandToDelete(null);
         }
     }
 
@@ -108,7 +116,7 @@ export const BrandsView: React.FC = () => {
                                 <Button size="sm" variant="outline" className="h-7 text-xs flex-1" onClick={() => editBrand(brand)}>
                                     <Edit2 className="w-3 h-3 mr-1" /> Edit
                                 </Button>
-                                <Button size="sm" variant="outline" className="h-7 text-xs flex-1 text-destructive hover:bg-destructive/10 border-destructive/20" onClick={() => deleteBrand(brand.id)}>
+                                <Button size="sm" variant="outline" className="h-7 text-xs flex-1 text-destructive hover:bg-destructive/10 border-destructive/20" onClick={() => handleDeleteClick(brand.id)}>
                                     <Trash2 className="w-3 h-3 mr-1" /> Remove
                                 </Button>
                             </div>
@@ -164,6 +172,20 @@ export const BrandsView: React.FC = () => {
                 </div>
 
             </div>
+            <ConfirmDialog
+                open={!!brandToDelete}
+                onOpenChange={(open) => !open && setBrandToDelete(null)}
+                title="Delete Brand?"
+                description="This action cannot be undone. This will permanently remove the brand partner."
+                onConfirm={confirmDelete}
+            />
+
+            <AppAlertDialog
+                open={alertConfig.open}
+                onOpenChange={(open) => setAlertConfig(prev => ({ ...prev, open }))}
+                title={alertConfig.title}
+                description={alertConfig.desc}
+            />
         </div>
     );
 };
