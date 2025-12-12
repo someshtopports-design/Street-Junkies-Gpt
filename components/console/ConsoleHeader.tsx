@@ -19,12 +19,7 @@ export const ConsoleHeader: React.FC<ConsoleHeaderProps> = ({ role, onLogout, th
 
                 {/* Left: Branding & Mobile Menu */}
                 <div className="flex items-center gap-3 md:gap-4">
-                    <button
-                        onClick={onMenuClick}
-                        className="md:hidden p-2 rounded-xl text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
-                    >
-                        <Menu className="w-5 h-5" />
-                    </button>
+
 
                     <div className="flex items-center gap-2.5 group cursor-pointer">
                         <div className="h-9 w-9 rounded-2xl bg-gradient-to-tr from-primary to-violet-500 flex items-center justify-center shadow-lg shadow-primary/25 transition-transform group-hover:scale-105 duration-300">

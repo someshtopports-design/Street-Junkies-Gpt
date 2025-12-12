@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { collection, query, orderBy, onSnapshot, writeBatch, doc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { ConfirmDialog, AppAlertDialog } from "@/components/ui/app-dialogs";
 
 // --- Types ---
 interface DashboardViewProps {
@@ -139,6 +140,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ store, onSwitchSto
     const [selectedMetric, setSelectedMetric] = useState<"revenue" | "commission" | "payouts" | "settled" | null>(null);
 
     // Settlement State (Persistent)
+    const [settleBrand, setSettleBrand] = useState<string | null>(null);
+    const [isSettling, setIsSettling] = useState(false);
+    const [alertConfig, setAlertConfig] = useState({ open: false, title: "", desc: "" });
 
     useEffect(() => {
         const q = query(collection(db, "sales"), orderBy("createdAt", "desc"));
@@ -188,18 +192,26 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ store, onSwitchSto
         return Object.entries(stats).map(([brand, data]) => ({ brand, ...data }));
     }, [filteredSales]);
 
-    const handleSettle = async (brandName: string) => {
-        if (!confirm(`Confirm settlement for all pending sales for ${brandName}?`)) return;
-
-        const batch = writeBatch(db);
+    const initiateSettle = (brandName: string) => {
         const pendingSales = filteredSales.filter(s => s.brand === brandName && s.payoutStatus !== 'settled');
-
         if (pendingSales.length === 0) {
-            alert("No pending sales to settle.");
+            setAlertConfig({
+                open: true,
+                title: "No Pending Sales",
+                desc: "There are no pending sales to settle for this brand."
+            });
             return;
         }
+        setSettleBrand(brandName);
+    };
+
+    const confirmSettle = async () => {
+        if (!settleBrand) return;
+        setIsSettling(true);
+        const pendingSales = filteredSales.filter(s => s.brand === settleBrand && s.payoutStatus !== 'settled');
 
         try {
+            const batch = writeBatch(db);
             pendingSales.forEach(s => {
                 const ref = doc(db, "sales", s.id);
                 batch.update(ref, {
@@ -208,10 +220,21 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ store, onSwitchSto
                 });
             });
             await batch.commit();
-            alert(`Settled ${pendingSales.length} transactions for ${brandName}.`);
+            setSettleBrand(null);
+            setAlertConfig({
+                open: true,
+                title: "Settlement Successful",
+                desc: `Successfully settled ${pendingSales.length} transactions for ${settleBrand}.`
+            });
         } catch (e) {
             console.error("Settlement failed", e);
-            alert("Failed to process settlement. See console.");
+            setAlertConfig({
+                open: true,
+                title: "Error",
+                desc: "Failed to process settlement. Please try again."
+            });
+        } finally {
+            setIsSettling(false);
         }
     };
 
@@ -353,7 +376,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ store, onSwitchSto
                                                                 size="sm"
                                                                 variant="outline"
                                                                 className="h-8 gap-2"
-                                                                onClick={() => handleSettle(stat.brand)}
+                                                                onClick={() => initiateSettle(stat.brand)}
                                                             >
                                                                 Settle
                                                                 <Upload className="w-3 h-3 text-muted-foreground" />
@@ -370,6 +393,23 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ store, onSwitchSto
                     </Card>
                 </div>
             )}
-        </div>
+
+
+            <ConfirmDialog
+                open={!!settleBrand}
+                onOpenChange={(open) => !open && setSettleBrand(null)}
+                title={`Settle ${settleBrand}?`}
+                description="This will mark all pending sales for this brand as settled. This action cannot be undone."
+                onConfirm={confirmSettle}
+                isLoading={isSettling}
+            />
+
+            <AppAlertDialog
+                open={alertConfig.open}
+                onOpenChange={(open) => setAlertConfig(prev => ({ ...prev, open }))}
+                title={alertConfig.title}
+                description={alertConfig.desc}
+            />
+        </div >
     );
 };

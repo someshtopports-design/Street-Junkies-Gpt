@@ -16,7 +16,9 @@ import {
 import { collection, query, onSnapshot, addDoc, doc, updateDoc, increment, getDocs, where } from "firebase/firestore";
 
 import { db } from "@/lib/firebase";
+
 import { Html5QrcodeScanner } from "html5-qrcode";
+import { AppAlertDialog } from "@/components/ui/app-dialogs";
 
 interface SalesPanelProps {
     store: string;
@@ -40,7 +42,11 @@ export const SalesPanel: React.FC<SalesPanelProps> = ({ store }) => {
     const [qty, setQty] = useState("1");
     const [customerName, setCustomerName] = useState("");
     const [customerPhone, setCustomerPhone] = useState("");
+
     const [customerAddr, setCustomerAddr] = useState("");
+
+    // Alert State
+    const [alertConfig, setAlertConfig] = useState({ open: false, title: "", desc: "" });
 
     useEffect(() => {
         const q = query(collection(db, "inventory"));
@@ -68,7 +74,7 @@ export const SalesPanel: React.FC<SalesPanelProps> = ({ store }) => {
                 } else {
                     // Optional: Provide feedback for invalid scan or keep scanning
                     console.log("Scanned code not found in inventory:", decodedText);
-                    alert("Item not found in inventory.");
+                    setAlertConfig({ open: true, title: "Scan Error", desc: "Item not found in inventory." });
                     setIsScanning(false);
                     scanner.clear();
                 }
@@ -91,7 +97,7 @@ export const SalesPanel: React.FC<SalesPanelProps> = ({ store }) => {
         if (found) {
             selectItem(found);
         } else {
-            alert("Item ID not found. Please check and try again.");
+            setAlertConfig({ open: true, title: "Search Error", desc: "Item ID not found. Please check and try again." });
         }
     };
 
@@ -271,7 +277,7 @@ export const SalesPanel: React.FC<SalesPanelProps> = ({ store }) => {
                                 className="flex-1"
                                 onClick={() => {
                                     if (customerName && customerPhone) setStep("review")
-                                    else alert("Please enter basic customer details")
+                                    else setAlertConfig({ open: true, title: "Missing Information", desc: "Please enter basic customer details (Name & Phone)" })
                                 }}
                             >
                                 Review
@@ -410,11 +416,11 @@ export const SalesPanel: React.FC<SalesPanelProps> = ({ store }) => {
                                         try {
                                             const { sendInvoiceEmail } = await import("@/lib/emailService");
                                             await sendInvoiceEmail(emailPreview);
-                                            alert(`Invoice sent successfully to ${emailPreview.to_email}!`);
+                                            setAlertConfig({ open: true, title: "Email Sent", desc: `Invoice sent successfully to ${emailPreview.to_email}!` });
                                             setEmailPreview(null);
                                         } catch (e) {
                                             console.error(e);
-                                            alert("Failed to send. Please check configuration.");
+                                            setAlertConfig({ open: true, title: "Error", desc: "Failed to send. Please check configuration." });
                                         }
                                     }}
                                 >
@@ -426,6 +432,14 @@ export const SalesPanel: React.FC<SalesPanelProps> = ({ store }) => {
                 )}
 
             </Card>
+
+
+            <AppAlertDialog
+                open={alertConfig.open}
+                onOpenChange={(open) => setAlertConfig(prev => ({ ...prev, open }))}
+                title={alertConfig.title}
+                description={alertConfig.desc}
+            />
         </div>
     );
 };

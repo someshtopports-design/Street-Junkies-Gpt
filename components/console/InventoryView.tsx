@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { AppAlertDialog } from "@/components/ui/app-dialogs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -27,6 +29,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({ store }) => {
     // QR & Previews
     const [createdItem, setCreatedItem] = useState<any>(null);
     const [showQrModal, setShowQrModal] = useState(false);
+    const [alertConfig, setAlertConfig] = useState({ open: false, title: "", desc: "" });
 
     useEffect(() => {
         const unsubInv = onSnapshot(query(collection(db, "inventory"), orderBy("createdAt", "desc")), (snap) => {
@@ -40,7 +43,10 @@ export const InventoryView: React.FC<InventoryViewProps> = ({ store }) => {
     }, []);
 
     const handleAddItem = async () => {
-        if (!name || !brandId || !size) { alert("Please fill required fields"); return; }
+        if (!name || !brandId || !size) {
+            setAlertConfig({ open: true, title: "Validation Error", desc: "Please fill all required fields (Brand, Name, Size)." });
+            return;
+        }
         const selectedBrand = brands.find(b => b.id === brandId);
 
         try {
@@ -62,7 +68,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({ store }) => {
             setShowQrModal(true);
         } catch (e) {
             console.error(e);
-            alert("Error adding item");
+            setAlertConfig({ open: true, title: "Error", desc: "Failed to add item to inventory." });
         }
     };
 
@@ -233,29 +239,39 @@ export const InventoryView: React.FC<InventoryViewProps> = ({ store }) => {
             </div>
 
             {/* QR Modal */}
-            {showQrModal && createdItem && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-                    <Card className="w-full max-w-sm p-8 flex flex-col items-center gap-6 shadow-2xl border-none ring-1 ring-white/10">
-                        <div className="text-center space-y-1">
-                            <h2 className="text-2xl font-bold">{createdItem.brand}</h2>
-                            <p className="text-muted-foreground">{createdItem.name} — {createdItem.size}</p>
-                        </div>
+            {/* QR Modal (Replaced with Dialog) */}
+            <Dialog open={showQrModal} onOpenChange={setShowQrModal}>
+                <DialogContent className="sm:max-w-sm flex flex-col items-center">
+                    {createdItem && (
+                        <>
+                            <div className="text-center space-y-1">
+                                <h2 className="text-2xl font-bold">{createdItem.brand}</h2>
+                                <p className="text-muted-foreground">{createdItem.name} — {createdItem.size}</p>
+                            </div>
 
-                        <div className="p-4 bg-white rounded-2xl shadow-inner">
-                            <img src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${createdItem.id}`} alt="QR" className="w-48 h-48 mix-blend-multiply" />
-                        </div>
+                            <div className="p-4 bg-white rounded-2xl shadow-inner">
+                                <img src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${createdItem.id}`} alt="QR" className="w-48 h-48 mix-blend-multiply" />
+                            </div>
 
-                        <div className="w-full text-center space-y-1">
-                            <p className="font-mono text-xs text-muted-foreground bg-secondary py-1 px-3 rounded-full inline-block">{createdItem.id}</p>
-                        </div>
+                            <div className="w-full text-center space-y-1">
+                                <p className="font-mono text-xs text-muted-foreground bg-secondary py-1 px-3 rounded-full inline-block">{createdItem.id}</p>
+                            </div>
 
-                        <div className="flex gap-3 w-full">
-                            <Button onClick={() => closeModal(true)} className="flex-1 bg-primary">Add Variation</Button>
-                            <Button variant="secondary" onClick={() => closeModal(false)} className="flex-1">Done</Button>
-                        </div>
-                    </Card>
-                </div>
-            )}
+                            <div className="flex gap-3 w-full mt-4">
+                                <Button onClick={() => closeModal(true)} className="flex-1 bg-primary">Add Variation</Button>
+                                <Button variant="secondary" onClick={() => closeModal(false)} className="flex-1">Done</Button>
+                            </div>
+                        </>
+                    )}
+                </DialogContent>
+            </Dialog>
+
+            <AppAlertDialog
+                open={alertConfig.open}
+                onOpenChange={(open) => setAlertConfig(prev => ({ ...prev, open }))}
+                title={alertConfig.title}
+                description={alertConfig.desc}
+            />
         </div>
     );
 };

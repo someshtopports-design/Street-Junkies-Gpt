@@ -1,5 +1,7 @@
 import React, { useState, useMemo } from "react";
 import { Card } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AppAlertDialog } from "@/components/ui/app-dialogs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -22,6 +24,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ store }) => {
 
     // Preview Modal State
     const [emailPreview, setEmailPreview] = useState<any>(null);
+    const [alertConfig, setAlertConfig] = useState({ open: false, title: "", desc: "" });
 
     React.useEffect(() => {
         const q = query(collection(db, "sales"), orderBy("createdAt", "desc"));
@@ -263,59 +266,64 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ store }) => {
             </div>
 
             {/* Email Preview Modal Overlay */}
-            {emailPreview && (
-                <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm animate-in fade-in duration-200">
-                    <div className="w-full max-w-sm bg-card border border-border rounded-xl shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-200 m-4">
-                        <div className="p-4 border-b border-border bg-muted/30">
-                            <h3 className="font-semibold text-sm">Confirm Email Send</h3>
-                        </div>
-                        <div className="p-4 space-y-3 text-sm">
-                            <div className="grid grid-cols-[60px_1fr] gap-2">
-                                <span className="text-muted-foreground text-right">To:</span>
-                                <span className="font-medium">{emailPreview.to_name}</span>
+            <Dialog open={!!emailPreview} onOpenChange={(open) => !open && setEmailPreview(null)}>
+                <DialogContent className="sm:max-w-sm p-0 gap-0 overflow-hidden">
+                    <div className="p-4 border-b border-border bg-muted/30">
+                        <h3 className="font-semibold text-sm">Confirm Email Send</h3>
+                    </div>
+                    <div className="p-4 space-y-3 text-sm">
+                        <div className="grid grid-cols-[60px_1fr] gap-2">
+                            <span className="text-muted-foreground text-right">To:</span>
+                            <span className="font-medium">{emailPreview?.to_name}</span>
 
-                                <span className="text-muted-foreground text-right">Email:</span>
-                                <span className="font-mono text-xs">{emailPreview.to_email}</span>
+                            <span className="text-muted-foreground text-right">Email:</span>
+                            <span className="font-mono text-xs">{emailPreview?.to_email}</span>
 
-                                <span className="text-muted-foreground text-right">Subject:</span>
-                                <span className="truncate">Invoice for {emailPreview.to_name}...</span>
-                            </div>
-                            <div className="bg-secondary/20 p-3 rounded-lg text-xs font-mono text-muted-foreground whitespace-pre-wrap border border-border/50">
-                                {emailPreview.message}
-                                {"\n\n"}
-                                {emailPreview.invoice_details}
-                            </div>
+                            <span className="text-muted-foreground text-right">Subject:</span>
+                            <span className="truncate">Invoice for {emailPreview?.to_name}...</span>
                         </div>
-                        <div className="p-3 bg-muted/30 border-t border-border flex gap-2 justify-end">
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => setEmailPreview(null)}
-                                className="h-8"
-                            >
-                                Cancel
-                            </Button>
-                            <Button
-                                size="sm"
-                                className="h-8 bg-blue-600 hover:bg-blue-700 text-white"
-                                onClick={async () => {
-                                    try {
-                                        const { sendInvoiceEmail } = await import("@/lib/emailService");
-                                        await sendInvoiceEmail(emailPreview);
-                                        alert(`Invoice sent successfully to ${emailPreview.to_email}!`);
-                                        setEmailPreview(null);
-                                    } catch (e) {
-                                        console.error(e);
-                                        alert("Failed to send. Please check configuration.");
-                                    }
-                                }}
-                            >
-                                Confirm <Send className="w-3 h-3 ml-2" />
-                            </Button>
+                        <div className="bg-secondary/20 p-3 rounded-lg text-xs font-mono text-muted-foreground whitespace-pre-wrap border border-border/50">
+                            {emailPreview?.message}
+                            {"\n\n"}
+                            {emailPreview?.invoice_details}
                         </div>
                     </div>
-                </div>
-            )}
+                    <div className="p-3 bg-muted/30 border-t border-border flex gap-2 justify-end">
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setEmailPreview(null)}
+                            className="h-8"
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            size="sm"
+                            className="h-8 bg-blue-600 hover:bg-blue-700 text-white"
+                            onClick={async () => {
+                                try {
+                                    const { sendInvoiceEmail } = await import("@/lib/emailService");
+                                    await sendInvoiceEmail(emailPreview);
+                                    setAlertConfig({ open: true, title: "Email Sent", desc: `Invoice sent successfully to ${emailPreview?.to_email}!` });
+                                    setEmailPreview(null);
+                                } catch (e) {
+                                    console.error(e);
+                                    setAlertConfig({ open: true, title: "Error", desc: "Failed to send. Please check configuration." });
+                                }
+                            }}
+                        >
+                            Confirm <Send className="w-3 h-3 ml-2" />
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            <AppAlertDialog
+                open={alertConfig.open}
+                onOpenChange={(open) => setAlertConfig(prev => ({ ...prev, open }))}
+                title={alertConfig.title}
+                description={alertConfig.desc}
+            />
         </div>
     );
 };
