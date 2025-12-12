@@ -155,7 +155,7 @@ const StreetJunkiesConsole: React.FC = () => {
         <main className="flex-1 overflow-y-auto w-full p-4 md:p-8 pb-24 md:pb-8 relative scroll-smooth">
           <div className="max-w-7xl mx-auto w-full">
             {/* Pass store prop to all views that need it */}
-            {route === "admin" && <DashboardView store={store} />}
+            {route === "admin" && <DashboardView store={store} onSwitchStore={() => setStore(null)} />}
             {route === "admin/brands" && <BrandsView />}
             {route === "admin/inventory" && <InventoryView store={store} />}
             {route === "admin/sales" && <SalesPanel store={store} />}
