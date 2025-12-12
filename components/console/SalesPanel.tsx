@@ -464,9 +464,13 @@ export const SalesPanel: React.FC<SalesPanelProps> = ({ store }) => {
                                             await sendInvoiceEmail(emailPreview.emailParams);
                                             setAlertConfig({ open: true, title: "Email Sent", desc: `Invoice sent successfully to ${emailPreview.ui_to_email}!` });
                                             setEmailPreview(null);
-                                        } catch (e) {
+                                        } catch (e: any) {
                                             console.error(e);
-                                            setAlertConfig({ open: true, title: "Error", desc: "Failed to send. Please check configuration." });
+                                            setAlertConfig({
+                                                open: true,
+                                                title: "Email Error",
+                                                desc: e.message || "Failed to send. Please check Internet or API Key."
+                                            });
                                         }
                                     }}
                                 >
