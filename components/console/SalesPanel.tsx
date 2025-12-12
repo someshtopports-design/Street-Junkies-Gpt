@@ -235,48 +235,6 @@ export const SalesPanel: React.FC<SalesPanelProps> = ({ store }) => {
             // Let's assume mostly 1 brand per transaction or send distinct emails.
             // For MVP: Send 1 email using the first item's brand info as context, or if mixed, warn user.
 
-            // Let's Group items by Brand Email to send correct summaries
-            const itemsByEmail: Record<string, any[]> = {};
-            batchEmailItems.forEach(i => {
-                const email = i.brandEmail || "unknown@brand.com"; // Fallback
-                if (!itemsByEmail[email]) itemsByEmail[email] = [];
-                itemsByEmail[email].push(i);
-            });
-
-            // Trigger Email Preview for the FIRST brand (or loop? but preview is modal)
-            // If strictly needing email, let's just trigger for the first one for now or 
-            // if user asks for specific brand. 
-            // Let's take the first unique brand to show in preview.
-            const uniqueEmails = Object.keys(itemsByEmail);
-            if (uniqueEmails.length > 0) {
-                const targetEmail = uniqueEmails[0];
-                const brandItems = itemsByEmail[targetEmail];
-                const brandName = brandItems[0].brand;
-
-                const brandTotal = brandItems.reduce((acc, curr) => acc + curr.amount, 0);
-                const brandPayout = brandItems.reduce((acc, curr) => acc + (curr.amount * 0.8), 0); // Approx 20% comm
-
-                setEmailPreview({
-                    ui_to_name: brandName,
-                    ui_to_email: targetEmail,
-                    ui_message: `Sale Confirmed (${brandItems.length} Items)`,
-                    ui_details: `Total: ₹${brandTotal}\nPayout: ₹${brandPayout.toFixed(2)}`,
-                    emailParams: {
-                        to_email: targetEmail,
-                        to_name: brandName,
-                        status: "CONFIRMED",
-                        invoice_date: new Date().toLocaleDateString('en-IN'),
-                        invoice_period: new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
-                        items: brandItems,
-                        totals: {
-                            total: brandTotal,
-                            comm: brandTotal * 0.2,
-                            payout: brandPayout
-                        }
-                    }
-                });
-            }
-
             setStep("success");
         } catch (error) {
             console.error(error);
