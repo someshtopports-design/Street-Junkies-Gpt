@@ -26,6 +26,7 @@ const StreetJunkiesConsole: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [store, setStore] = useState<"Delhi" | "Bangalore" | null>(null);
 
   // --- Auth & Init ---
   useEffect(() => {
@@ -51,6 +52,7 @@ const StreetJunkiesConsole: React.FC = () => {
       } else {
         setRole(null);
         setRoute("login");
+        setStore(null);
       }
       setLoading(false);
     });
@@ -71,6 +73,7 @@ const StreetJunkiesConsole: React.FC = () => {
     await signOut(auth);
     setRole(null);
     setRoute("login");
+    setStore(null);
   };
 
   const toggleTheme = () => {
@@ -96,6 +99,39 @@ const StreetJunkiesConsole: React.FC = () => {
     return <LoginScreen onLogin={handleLogin} />;
   }
 
+  // --- Store Selection Modal ---
+  if (!store) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4 animate-in fade-in">
+        <div className="max-w-md w-full bg-card border border-border shadow-2xl rounded-2xl p-8 flex flex-col gap-6 text-center">
+          <div className="space-y-2">
+            <h2 className="text-2xl font-bold tracking-tight">Select Store Location</h2>
+            <p className="text-muted-foreground">Please choose the store you are operating from.</p>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <button
+              onClick={() => setStore("Delhi")}
+              className="p-6 rounded-xl border-2 border-border hover:border-primary hover:bg-primary/5 transition-all group flex flex-col items-center gap-3"
+            >
+              <div className="h-12 w-12 rounded-full bg-orange-500/10 text-orange-600 flex items-center justify-center text-xl font-bold group-hover:scale-110 transition-transform">D</div>
+              <span className="font-semibold">Delhi</span>
+            </button>
+            <button
+              onClick={() => setStore("Bangalore")}
+              className="p-6 rounded-xl border-2 border-border hover:border-primary hover:bg-primary/5 transition-all group flex flex-col items-center gap-3"
+            >
+              <div className="h-12 w-12 rounded-full bg-blue-500/10 text-blue-600 flex items-center justify-center text-xl font-bold group-hover:scale-110 transition-transform">B</div>
+              <span className="font-semibold">Bangalore</span>
+            </button>
+          </div>
+          <button onClick={handleLogout} className="text-sm text-muted-foreground hover:text-foreground underline underline-offset-4">
+            Logout
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className={`min-h-screen bg-background text-foreground flex flex-col font-sans selection:bg-primary/20`}>
       {/* Header */}
@@ -118,11 +154,12 @@ const StreetJunkiesConsole: React.FC = () => {
         {/* Main Content Area */}
         <main className="flex-1 overflow-y-auto w-full p-4 md:p-8 pb-24 md:pb-8 relative scroll-smooth">
           <div className="max-w-7xl mx-auto w-full">
-            {route === "admin" && <DashboardView />}
+            {/* Pass store prop to all views that need it */}
+            {route === "admin" && <DashboardView store={store} />}
             {route === "admin/brands" && <BrandsView />}
-            {route === "admin/inventory" && <InventoryView />}
-            {route === "admin/sales" && <SalesPanel />}
-            {route === "admin/invoices" && <InvoicesView />}
+            {route === "admin/inventory" && <InventoryView store={store} />}
+            {route === "admin/sales" && <SalesPanel store={store} />}
+            {route === "admin/invoices" && <InvoicesView store={store} />}
           </div>
         </main>
       </div>

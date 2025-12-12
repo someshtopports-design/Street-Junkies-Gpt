@@ -16,7 +16,11 @@ import {
 import { collection, query, onSnapshot, addDoc, doc, updateDoc, increment, getDocs, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
-export const SalesPanel: React.FC = () => {
+interface SalesPanelProps {
+    store: string;
+}
+
+export const SalesPanel: React.FC<SalesPanelProps> = ({ store }) => {
     const [step, setStep] = useState<"search" | "details" | "review" | "success">("search");
     const [loading, setLoading] = useState(true);
     const [inventoryItems, setInventoryItems] = useState<any[]>([]);
@@ -81,7 +85,8 @@ export const SalesPanel: React.FC = () => {
                 commission: comm,
                 payoutAmount: payout,
                 createdAt: new Date(),
-                status: "confirmed"
+                status: "confirmed",
+                store: store
             });
 
             await updateDoc(doc(db, "inventory", selectedItem.id), {
@@ -112,7 +117,7 @@ export const SalesPanel: React.FC = () => {
             <div className="flex items-center justify-between mb-8 px-2">
                 <div>
                     <h1 className="text-xl font-bold tracking-tight">New Sale</h1>
-                    <p className="text-xs text-muted-foreground">Process a new transaction</p>
+                    <p className="text-xs text-muted-foreground">Store: {store}</p>
                 </div>
                 <div className="flex gap-2">
                     {['search', 'details', 'review', 'success'].map((s, i) => (
