@@ -130,26 +130,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ store }) => {
               </tr>
             `).join("");
 
-        // 3. Generate Full HTML Programmatically
-        const { generateInvoiceHtml } = await import("@/lib/invoiceTemplate");
-        const fullHtml = generateInvoiceHtml({
-            to_name: brand,
-            to_email: brandEmail,
-            statement_for: timeLabel,
-            items: filtered
-                .filter(s => s.brand === brand)
-                .map(s => ({
-                    desc: `${s.item} (ID: ${s.id?.slice(-6) || 'N/A'})`,
-                    qty: s.quantity || 1,
-                    price: parseFloat(String(s.unitPrice || s.amount).replace(/[^0-9.]/g, '')), // safe parse
-                    amount: parseFloat(String(s.amount).replace(/[^0-9.]/g, ''))
-                })),
-            totals: {
-                total: specificTotal,
-                comm: data.comm,
-                payout: specificPayout
-            }
-        });
+
 
         setEmailPreview({
             ui_to_name: brand,
@@ -157,11 +138,24 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ store }) => {
             ui_message: `Invoice Report (${store})\nPeriod: ${timeLabel}`,
             ui_details: `Total Sales Volume: ₹${specificTotal.toLocaleString()}\nCommission Deducted: ₹${data.comm.toLocaleString()}\n\nNET PAYOUT AMOUNT: ₹${specificPayout.toLocaleString()}`,
 
-            // "Nuclear" Option
             emailParams: {
                 to_email: brandEmail,
                 to_name: brand,
-                html_message: fullHtml // <--- THE MAGIC KEY
+                status: "CONFIRMED",
+                invoice_date: new Date().toLocaleDateString('en-IN'),
+                seller_name: "Street Junkies India",
+                seller_address_line1: "New Delhi – 110048",
+                seller_address_line2: "India",
+                seller_gst: "07ABMCS5480Q1ZD",
+                brand_name: brand,
+                invoice_period: timeLabel,
+                items_rows: rowsHtml,
+                total_amount: specificTotal.toLocaleString(),
+                commission_percent: "20",
+                commission_amount: data.comm.toLocaleString(),
+                payout_amount: specificPayout.toLocaleString(),
+                signatory_name: "Admin",
+                signatory_title: "Street Junkies Team"
             }
         });
     };
