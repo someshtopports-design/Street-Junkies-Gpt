@@ -78,6 +78,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({ store }) => {
                 size,
                 price: parseFloat(price) || 0,
                 stock: parseInt(stock) || 0,
+                sold: 0,
                 store: store
             };
 
@@ -256,7 +257,8 @@ export const InventoryView: React.FC<InventoryViewProps> = ({ store }) => {
                                 <th className="px-4 py-2.5 font-semibold">Product</th>
                                 <th className="px-4 py-2.5 font-semibold w-24 hidden md:table-cell">Brand</th>
                                 <th className="px-2 py-2.5 font-semibold w-16 text-center">Size</th>
-                                <th className="px-2 py-2.5 font-semibold w-16 text-center">Stock</th>
+                                <th className="px-2 py-2.5 font-semibold text-center text-emerald-600">Stock IN</th>
+                                <th className="px-2 py-2.5 font-semibold text-center text-red-600">Stock OUT</th>
                                 <th className="px-4 py-2.5 font-semibold w-24 text-right">Price</th>
                                 <th className="px-2 py-2.5 font-semibold w-28 text-center">Actions</th>
                             </tr>
@@ -267,6 +269,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({ store }) => {
                                     <tr key={i} className="animate-pulse">
                                         <td className="px-4 py-4"><div className="h-4 w-32 bg-muted rounded"></div></td>
                                         <td className="px-4 py-4 md:table-cell hidden"><div className="h-4 w-20 bg-muted rounded"></div></td>
+                                        <td className="px-2 py-4"><div className="h-4 w-8 mx-auto bg-muted rounded"></div></td>
                                         <td className="px-2 py-4"><div className="h-4 w-8 mx-auto bg-muted rounded"></div></td>
                                         <td className="px-2 py-4"><div className="h-4 w-8 mx-auto bg-muted rounded"></div></td>
                                         <td className="px-4 py-4"><div className="h-4 w-16 ml-auto bg-muted rounded"></div></td>
@@ -286,8 +289,11 @@ export const InventoryView: React.FC<InventoryViewProps> = ({ store }) => {
                                         <td className="px-2 py-2.5 text-center">
                                             <Badge variant="secondary" className="font-mono text-[10px] px-1.5 h-5">{item.size || "-"}</Badge>
                                         </td>
-                                        <td className="px-2 py-2.5 text-center">
-                                            <span className={`text-xs ${item.stock < 5 ? "text-red-500 font-bold" : "text-foreground"}`}>{item.stock}</span>
+                                        <td className="px-2 py-2.5 text-center font-mono font-bold text-emerald-600">
+                                            {(item.stock || 0) + (item.sold || 0)}
+                                        </td>
+                                        <td className="px-2 py-2.5 text-center font-mono font-bold text-red-500">
+                                            {item.stock}
                                         </td>
                                         <td className="px-4 py-2.5 tabular-nums text-xs text-right">₹{item.price}</td>
                                         <td className="px-2 py-2.5 text-center">

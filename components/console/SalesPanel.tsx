@@ -214,7 +214,8 @@ export const SalesPanel: React.FC<SalesPanelProps> = ({ store }) => {
                 if (item.stock && item.stock > 0) {
                     const itemRef = doc(db, "inventory", item.id);
                     await updateDoc(itemRef, {
-                        stock: increment(-q)
+                        stock: increment(-q),
+                        sold: increment(q)
                     });
                 }
 
