@@ -26,7 +26,16 @@ if (!firebaseConfig.apiKey) {
   // Initialize Firebase
   app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
   auth = getAuth(app);
+
+  // Initialize Firestore with Persistence
   db = getFirestore(app);
+  if (typeof window !== "undefined") {
+    import("firebase/firestore").then(({ enableIndexedDbPersistence }) => {
+      enableIndexedDbPersistence(db).catch((err) => {
+        console.log("Persistence error:", err.code);
+      });
+    });
+  }
 
   if (typeof window !== "undefined") {
     isSupported().then((yes) => {

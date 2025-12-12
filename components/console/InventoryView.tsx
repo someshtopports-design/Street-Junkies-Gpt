@@ -253,41 +253,53 @@ export const InventoryView: React.FC<InventoryViewProps> = ({ store }) => {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-border/40">
-                            {filteredItems.map(item => (
-                                <tr key={item.id} className="hover:bg-muted/30 transition-colors group">
-                                    <td className="px-4 py-2.5 font-medium text-foreground">
-                                        <div className="flex flex-col">
-                                            <span>{item.name}</span>
-                                            <span className="text-[10px] text-muted-foreground md:hidden">{item.brand}</span>
-                                        </div>
-                                    </td>
-                                    <td className="px-4 py-2.5 text-muted-foreground text-xs hidden md:table-cell">{item.brand}</td>
-                                    <td className="px-2 py-2.5 text-center">
-                                        <Badge variant="secondary" className="font-mono text-[10px] px-1.5 h-5">{item.size || "-"}</Badge>
-                                    </td>
-                                    <td className="px-2 py-2.5 text-center">
-                                        <span className={`text-xs ${item.stock < 5 ? "text-red-500 font-bold" : "text-foreground"}`}>{item.stock}</span>
-                                    </td>
-                                    <td className="px-4 py-2.5 tabular-nums text-xs text-right">₹{item.price}</td>
-                                    <td className="px-2 py-2.5 text-center">
-                                        <div className="flex items-center justify-center gap-1">
-                                            <Button size="icon" variant="ghost" className="h-7 w-7 hover:bg-primary/10 text-primary opacity-70 group-hover:opacity-100" onClick={() => {
-                                                setCreatedItem(item);
-                                                setShowQrModal(true);
-                                            }}>
-                                                <QrCode className="w-3.5 h-3.5" />
-                                            </Button>
-                                            <Button size="icon" variant="ghost" className="h-7 w-7 hover:bg-blue-500/10 text-blue-600 opacity-70 group-hover:opacity-100" onClick={() => handleEdit(item)}>
-                                                <Edit2 className="w-3.5 h-3.5" />
-                                            </Button>
-                                            <Button size="icon" variant="ghost" className="h-7 w-7 hover:bg-red-500/10 text-red-600 opacity-70 group-hover:opacity-100" onClick={() => handleArchive(item.id)}>
-                                                <Archive className="w-3.5 h-3.5" />
-                                            </Button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
-                            {filteredItems.length === 0 && (
+                            {loading ? (
+                                Array(5).fill(0).map((_, i) => (
+                                    <tr key={i} className="animate-pulse">
+                                        <td className="px-4 py-4"><div className="h-4 w-32 bg-muted rounded"></div></td>
+                                        <td className="px-4 py-4 md:table-cell hidden"><div className="h-4 w-20 bg-muted rounded"></div></td>
+                                        <td className="px-2 py-4"><div className="h-4 w-8 mx-auto bg-muted rounded"></div></td>
+                                        <td className="px-2 py-4"><div className="h-4 w-8 mx-auto bg-muted rounded"></div></td>
+                                        <td className="px-4 py-4"><div className="h-4 w-16 ml-auto bg-muted rounded"></div></td>
+                                        <td className="px-2 py-4"><div className="h-8 w-8 mx-auto bg-muted rounded-full"></div></td>
+                                    </tr>
+                                ))
+                            ) : filteredItems.length > 0 ? (
+                                filteredItems.map(item => (
+                                    <tr key={item.id} className="hover:bg-muted/30 transition-colors group">
+                                        <td className="px-4 py-2.5 font-medium text-foreground">
+                                            <div className="flex flex-col">
+                                                <span>{item.name}</span>
+                                                <span className="text-[10px] text-muted-foreground md:hidden">{item.brand}</span>
+                                            </div>
+                                        </td>
+                                        <td className="px-4 py-2.5 text-muted-foreground text-xs hidden md:table-cell">{item.brand}</td>
+                                        <td className="px-2 py-2.5 text-center">
+                                            <Badge variant="secondary" className="font-mono text-[10px] px-1.5 h-5">{item.size || "-"}</Badge>
+                                        </td>
+                                        <td className="px-2 py-2.5 text-center">
+                                            <span className={`text-xs ${item.stock < 5 ? "text-red-500 font-bold" : "text-foreground"}`}>{item.stock}</span>
+                                        </td>
+                                        <td className="px-4 py-2.5 tabular-nums text-xs text-right">₹{item.price}</td>
+                                        <td className="px-2 py-2.5 text-center">
+                                            <div className="flex items-center justify-center gap-1">
+                                                <Button size="icon" variant="ghost" className="h-7 w-7 hover:bg-primary/10 text-primary opacity-70 group-hover:opacity-100" onClick={() => {
+                                                    setCreatedItem(item);
+                                                    setShowQrModal(true);
+                                                }}>
+                                                    <QrCode className="w-3.5 h-3.5" />
+                                                </Button>
+                                                <Button size="icon" variant="ghost" className="h-7 w-7 hover:bg-blue-500/10 text-blue-600 opacity-70 group-hover:opacity-100" onClick={() => handleEdit(item)}>
+                                                    <Edit2 className="w-3.5 h-3.5" />
+                                                </Button>
+                                                <Button size="icon" variant="ghost" className="h-7 w-7 hover:bg-red-500/10 text-red-600 opacity-70 group-hover:opacity-100" onClick={() => handleArchive(item.id)}>
+                                                    <Archive className="w-3.5 h-3.5" />
+                                                </Button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))
+                            ) : (
                                 <tr>
                                     <td colSpan={6} className="text-center py-10 text-muted-foreground">
                                         <div className="flex flex-col items-center gap-2">

@@ -30,29 +30,39 @@ interface DashboardViewProps {
 
 // --- Subcomponents ---
 
-const MetricCard = ({ label, value, delta, deltaLabel, icon: Icon, colorClass, onClick }: any) => (
+const MetricCard = ({ label, value, delta, deltaLabel, icon: Icon, colorClass, onClick, loading }: any) => (
     <Card
         onClick={onClick}
         className="relative overflow-hidden border border-border/50 bg-card p-5 group hover:shadow-md transition-all duration-300 cursor-pointer hover:-translate-y-1"
     >
-        <div className={`absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity ${colorClass}`}>
-            <Icon className="w-16 h-16" />
-        </div>
-        <div className="flex flex-col gap-4 relative z-10">
-            <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">{label}</span>
-                {delta && (
-                    <Badge variant="secondary" className="bg-green-500/10 text-green-600 border-green-500/20 text-[10px] gap-1 px-1.5">
-                        <ArrowUpRight className="w-3 h-3" />
-                        {delta}
-                    </Badge>
-                )}
+        {loading ? (
+            <div className="flex flex-col gap-4 animate-pulse">
+                <div className="h-3 w-24 bg-muted rounded" />
+                <div className="h-8 w-32 bg-muted rounded" />
+                <div className="h-3 w-20 bg-muted rounded" />
             </div>
-            <div>
-                <div className="text-2xl font-bold tracking-tight text-foreground">{value}</div>
-                <p className="text-[11px] text-muted-foreground mt-1">{deltaLabel}</p>
-            </div>
-        </div>
+        ) : (
+            <>
+                <div className={`absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity ${colorClass}`}>
+                    <Icon className="w-16 h-16" />
+                </div>
+                <div className="flex flex-col gap-4 relative z-10">
+                    <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">{label}</span>
+                        {delta && (
+                            <Badge variant="secondary" className="bg-green-500/10 text-green-600 border-green-500/20 text-[10px] gap-1 px-1.5">
+                                <ArrowUpRight className="w-3 h-3" />
+                                {delta}
+                            </Badge>
+                        )}
+                    </div>
+                    <div>
+                        <div className="text-2xl font-bold tracking-tight text-foreground">{value}</div>
+                        <p className="text-[11px] text-muted-foreground mt-1">{deltaLabel}</p>
+                    </div>
+                </div>
+            </>
+        )}
     </Card>
 );
 
@@ -301,6 +311,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ store, onSwitchSto
                     icon={TrendingUp}
                     colorClass="text-blue-500"
                     onClick={() => setSelectedMetric("revenue")}
+                    loading={loading}
                 />
                 <MetricCard
                     label="Commission"
@@ -310,6 +321,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ store, onSwitchSto
                     icon={Wallet}
                     colorClass="text-emerald-500"
                     onClick={() => setSelectedMetric("commission")}
+                    loading={loading}
                 />
                 <MetricCard
                     label="Payouts Pending"
@@ -319,9 +331,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ store, onSwitchSto
                     icon={Clock}
                     colorClass="text-orange-500"
                     onClick={() => setSelectedMetric("payouts")}
+                    loading={loading}
                 />
             </div>
-
             {/* Main Content Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 shrink-0 h-auto md:flex-1 md:overflow-hidden md:min-h-0">
                 <div className="lg:col-span-2 overflow-hidden h-[500px] md:h-full">
@@ -333,78 +345,80 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ store, onSwitchSto
             </div>
 
             {/* Drill Down Modal */}
-            {selectedMetric && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-                    <Card className="w-full max-w-2xl h-[80vh] flex flex-col overflow-hidden shadow-2xl">
-                        <div className="p-4 border-b border-border flex justify-between items-center bg-muted/20">
-                            <div>
-                                <h2 className="text-lg font-bold capitalize">{selectedMetric} Breakdown</h2>
-                                <p className="text-xs text-muted-foreground">Brand-wise Analysis ({store})</p>
+            {
+                selectedMetric && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+                        <Card className="w-full max-w-2xl h-[80vh] flex flex-col overflow-hidden shadow-2xl">
+                            <div className="p-4 border-b border-border flex justify-between items-center bg-muted/20">
+                                <div>
+                                    <h2 className="text-lg font-bold capitalize">{selectedMetric} Breakdown</h2>
+                                    <p className="text-xs text-muted-foreground">Brand-wise Analysis ({store})</p>
+                                </div>
+                                <Button variant="ghost" size="icon" onClick={() => setSelectedMetric(null)}>
+                                    <X className="w-4 h-4" />
+                                </Button>
                             </div>
-                            <Button variant="ghost" size="icon" onClick={() => setSelectedMetric(null)}>
-                                <X className="w-4 h-4" />
-                            </Button>
-                        </div>
 
-                        <div className="flex-1 overflow-y-auto p-0">
-                            <table className="w-full text-sm text-left">
-                                <thead className="text-xs text-muted-foreground uppercase bg-muted/40 sticky top-0 backdrop-blur-sm z-10">
-                                    <tr>
-                                        <th className="px-6 py-3">Brand</th>
-                                        <th className="px-6 py-3 text-right">
-                                            {selectedMetric === 'revenue' ? 'Revenue' :
-                                                selectedMetric === 'commission' ? 'Commission' : 'Payout Amount'}
-                                        </th>
-                                        {selectedMetric === 'payouts' && <th className="px-6 py-3 text-right">Status</th>}
-                                        {selectedMetric === 'payouts' && <th className="px-6 py-3 text-right">Action</th>}
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-border/50">
-                                    {brandStats.map(stat => (
-                                        <tr key={stat.brand} className="hover:bg-muted/10 transition-colors">
-                                            <td className="px-6 py-4 font-medium">{stat.brand}</td>
-                                            <td className="px-6 py-4 text-right font-mono text-base">
-                                                ₹{
-                                                    selectedMetric === 'revenue' ? stat.revenue.toLocaleString() :
-                                                        selectedMetric === 'commission' ? stat.comm.toLocaleString() :
-                                                            (selectedMetric === 'payouts' ? stat.pendingPayout.toLocaleString() : stat.payout.toLocaleString())
-                                                }
-                                                {selectedMetric === 'payouts' && stat.pendingPayout !== stat.payout && (
-                                                    <div className="text-[10px] text-muted-foreground">Total: ₹{stat.payout.toLocaleString()}</div>
-                                                )}
-                                            </td>
-                                            {selectedMetric === 'payouts' && (
-                                                <>
-                                                    <td className="px-6 py-4 text-right">
-                                                        {stat.pendingPayout === 0 ? (
-                                                            <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20">Settled</Badge>
-                                                        ) : (
-                                                            <Badge variant="outline" className="bg-orange-500/10 text-orange-600 border-orange-500/20">Pending</Badge>
-                                                        )}
-                                                    </td>
-                                                    <td className="px-6 py-4 text-right">
-                                                        {stat.pendingPayout > 0 && (
-                                                            <Button
-                                                                size="sm"
-                                                                variant="outline"
-                                                                className="h-8 gap-2"
-                                                                onClick={() => initiateSettle(stat.brand)}
-                                                            >
-                                                                Settle
-                                                                <Upload className="w-3 h-3 text-muted-foreground" />
-                                                            </Button>
-                                                        )}
-                                                    </td>
-                                                </>
-                                            )}
+                            <div className="flex-1 overflow-y-auto p-0">
+                                <table className="w-full text-sm text-left">
+                                    <thead className="text-xs text-muted-foreground uppercase bg-muted/40 sticky top-0 backdrop-blur-sm z-10">
+                                        <tr>
+                                            <th className="px-6 py-3">Brand</th>
+                                            <th className="px-6 py-3 text-right">
+                                                {selectedMetric === 'revenue' ? 'Revenue' :
+                                                    selectedMetric === 'commission' ? 'Commission' : 'Payout Amount'}
+                                            </th>
+                                            {selectedMetric === 'payouts' && <th className="px-6 py-3 text-right">Status</th>}
+                                            {selectedMetric === 'payouts' && <th className="px-6 py-3 text-right">Action</th>}
                                         </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    </Card>
-                </div>
-            )}
+                                    </thead>
+                                    <tbody className="divide-y divide-border/50">
+                                        {brandStats.map(stat => (
+                                            <tr key={stat.brand} className="hover:bg-muted/10 transition-colors">
+                                                <td className="px-6 py-4 font-medium">{stat.brand}</td>
+                                                <td className="px-6 py-4 text-right font-mono text-base">
+                                                    ₹{
+                                                        selectedMetric === 'revenue' ? stat.revenue.toLocaleString() :
+                                                            selectedMetric === 'commission' ? stat.comm.toLocaleString() :
+                                                                (selectedMetric === 'payouts' ? stat.pendingPayout.toLocaleString() : stat.payout.toLocaleString())
+                                                    }
+                                                    {selectedMetric === 'payouts' && stat.pendingPayout !== stat.payout && (
+                                                        <div className="text-[10px] text-muted-foreground">Total: ₹{stat.payout.toLocaleString()}</div>
+                                                    )}
+                                                </td>
+                                                {selectedMetric === 'payouts' && (
+                                                    <>
+                                                        <td className="px-6 py-4 text-right">
+                                                            {stat.pendingPayout === 0 ? (
+                                                                <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20">Settled</Badge>
+                                                            ) : (
+                                                                <Badge variant="outline" className="bg-orange-500/10 text-orange-600 border-orange-500/20">Pending</Badge>
+                                                            )}
+                                                        </td>
+                                                        <td className="px-6 py-4 text-right">
+                                                            {stat.pendingPayout > 0 && (
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="outline"
+                                                                    className="h-8 gap-2"
+                                                                    onClick={() => initiateSettle(stat.brand)}
+                                                                >
+                                                                    Settle
+                                                                    <Upload className="w-3 h-3 text-muted-foreground" />
+                                                                </Button>
+                                                            )}
+                                                        </td>
+                                                    </>
+                                                )}
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </Card>
+                    </div>
+                )
+            }
 
 
             <ConfirmDialog
