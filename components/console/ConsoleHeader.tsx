@@ -49,16 +49,31 @@ export const ConsoleHeader: React.FC<ConsoleHeaderProps> = ({ role, onLogout, th
                 time: new Date()
             }));
 
-            // Combine with whatever logic, for now simple state update
             setNotifications(prev => {
-                // Filter out old low_stock to avoid dupes if logic gets complex, but full replace is fine for this demo
+                // Filter out old low_stock
                 const others = prev.filter(n => n.type !== 'low_stock');
                 return [...others, ...lowStockItems];
             });
         });
 
+        const unsubSales = onSnapshot(qSales, (snap) => {
+            const pendingPayouts = snap.docs.map(doc => ({
+                id: doc.id,
+                type: 'pending_payout',
+                title: 'High Value Payout',
+                message: `Pending payout for ${doc.data().brand}: ₹${doc.data().payoutAmount}`,
+                time: new Date()
+            }));
+
+            setNotifications(prev => {
+                const others = prev.filter(n => n.type !== 'pending_payout');
+                return [...others, ...pendingPayouts];
+            });
+        });
+
         return () => {
             unsubStock();
+            unsubSales();
         };
     }, [store]);
 
