@@ -1,16 +1,16 @@
 export const generateInvoiceHtml = (data: {
-    to_name: string;
-    to_email: string;
-    to_address?: string;
-    statement_for: string;
-    items: Array<{ desc: string; qty: number; price: number; amount: number }>;
-    totals: { total: number; comm: number; payout: number };
+  to_name: string;
+  to_email: string;
+  to_address?: string;
+  statement_for: string;
+  items: Array<{ desc: string; qty: number; price: number; amount: number }>;
+  totals: { total: number; comm: number; payout: number };
 }): string => {
-    // Format Currency
-    const fmt = (n: number) => `₹${n.toLocaleString()}`;
+  // Format Currency
+  const fmt = (n: number) => `₹${n.toLocaleString()}`;
 
-    // Generate Rows
-    const rows = data.items.map(item => `
+  // Generate Rows
+  const rows = data.items.map(item => `
     <tr>
       <td style="padding: 12px; border-bottom: 1px solid #eee;">
         <div style="font-weight: bold; color: #333;">${item.desc}</div>
@@ -21,89 +21,80 @@ export const generateInvoiceHtml = (data: {
     </tr>
   `).join("");
 
-    // Full HTML Document
-    return `
-<!DOCTYPE html>
-<html>
-<head>
-<style>
-  body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; margin: 0; padding: 0; background-color: #f6f6f6; }
-  .container { width: 100%; max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
-  .header { background: #000; color: #fff; padding: 30px; text-align: center; }
-  .content { padding: 40px 30px; }
-  .meta { margin-bottom: 30px; }
-  table { width: 100%; border-collapse: collapse; }
-  .total-row td { padding: 10px 0; font-size: 14px; }
-  .final-total td { padding-top: 20px; font-size: 18px; font-weight: bold; color: #000; border-top: 2px solid #000; }
-  .footer { background: #f9f9f9; padding: 20px; text-align: center; font-size: 12px; color: #999; }
-</style>
-</head>
-<body>
-  <div class="container">
-    <div class="header">
-      <h1 style="margin:0; font-size: 24px;">STREET JUNKIES</h1>
-      <p style="margin:5px 0 0; opacity: 0.7; font-size: 14px;">Payout Statement</p>
-    </div>
-    <div class="content">
-      
-      <!-- Meta Section -->
-      <table style="margin-bottom: 30px;">
-        <tr>
-          <td valign="top">
-            <div style="font-size: 10px; text-transform: uppercase; color: #999; letter-spacing: 1px;">Partner</div>
-            <div style="font-weight: bold; font-size: 16px; margin-top: 4px;">${data.to_name}</div>
-            <div style="font-size: 12px; color: #666; margin-top: 2px;">${data.to_email}</div>
-          </td>
-          <td align="right" valign="top">
-            <div style="font-size: 10px; text-transform: uppercase; color: #999; letter-spacing: 1px;">Period</div>
-            <div style="font-weight: bold; font-size: 16px; margin-top: 4px;">${data.statement_for}</div>
-          </td>
-        </tr>
-      </table>
+  // Full HTML Document (Fragment Only)
+  return `
+  <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background-color: #f6f6f6; padding: 20px;">
+    <!-- Container -->
+    <div style="width: 100%; max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.05);">
+        
+        <!-- Header -->
+        <div style="background: #000; color: #fff; padding: 30px; text-align: center;">
+            <h1 style="margin:0; font-size: 24px;">STREET JUNKIES</h1>
+            <p style="margin:5px 0 0; opacity: 0.7; font-size: 14px;">Payout Statement</p>
+        </div>
 
-      <!-- Line Items -->
-      <table style="width: 100%; margin-bottom: 30px;">
-        <thead>
-          <tr style="background: #f9f9f9;">
-            <th style="text-align: left; padding: 10px; font-size: 10px; text-transform: uppercase; color: #999;">Item</th>
-            <th style="text-align: center; padding: 10px; font-size: 10px; text-transform: uppercase; color: #999;">Qty</th>
-            <th style="text-align: center; padding: 10px; font-size: 10px; text-transform: uppercase; color: #999;">Price</th>
-            <th style="text-align: right; padding: 10px; font-size: 10px; text-transform: uppercase; color: #999;">Amount</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${rows}
-        </tbody>
-      </table>
+        <!-- Content -->
+        <div style="padding: 40px 30px;">
+        
+            <!-- Meta Section -->
+            <table style="margin-bottom: 30px; width: 100%; border-collapse: collapse;">
+                <tr>
+                <td valign="top">
+                    <div style="font-size: 10px; text-transform: uppercase; color: #999; letter-spacing: 1px;">Partner</div>
+                    <div style="font-weight: bold; font-size: 16px; margin-top: 4px; color: #000;">${data.to_name}</div>
+                    <div style="font-size: 12px; color: #666; margin-top: 2px;">${data.to_email}</div>
+                </td>
+                <td align="right" valign="top">
+                    <div style="font-size: 10px; text-transform: uppercase; color: #999; letter-spacing: 1px;">Period</div>
+                    <div style="font-weight: bold; font-size: 16px; margin-top: 4px; color: #000;">${data.statement_for}</div>
+                </td>
+                </tr>
+            </table>
 
-      <!-- Totals -->
-      <table style="width: 100%;">
-        <tr class="total-row">
-          <td></td>
-          <td></td>
-          <td align="right" style="color: #666;">Gross Sales:</td>
-          <td align="right" width="120" style="font-weight: bold;">${fmt(data.totals.total)}</td>
-        </tr>
-        <tr class="total-row">
-          <td></td>
-          <td></td>
-          <td align="right" style="color: #666;">Commission (20%):</td>
-          <td align="right" style="color: #ef4444;">-${fmt(data.totals.comm)}</td>
-        </tr>
-        <tr class="final-total">
-          <td></td>
-          <td></td>
-          <td align="right">Net Payout:</td>
-          <td align="right" style="color: #16a34a;">${fmt(data.totals.payout)}</td>
-        </tr>
-      </table>
+            <!-- Line Items -->
+            <table style="width: 100%; margin-bottom: 30px; border-collapse: collapse;">
+                <thead>
+                <tr style="background: #f9f9f9;">
+                    <th style="text-align: left; padding: 10px; font-size: 10px; text-transform: uppercase; color: #999;">Item</th>
+                    <th style="text-align: center; padding: 10px; font-size: 10px; text-transform: uppercase; color: #999;">Qty</th>
+                    <th style="text-align: center; padding: 10px; font-size: 10px; text-transform: uppercase; color: #999;">Price</th>
+                    <th style="text-align: right; padding: 10px; font-size: 10px; text-transform: uppercase; color: #999;">Amount</th>
+                </tr>
+                </thead>
+                <tbody>
+                ${rows}
+                </tbody>
+            </table>
 
-    </div>
-    <div class="footer">
-      Generated by Street Junkies Console • Approved by Admin
+            <!-- Totals -->
+            <table style="width: 100%; border-collapse: collapse;">
+                <tr>
+                    <td style="padding: 5px;"></td>
+                    <td style="padding: 5px;"></td>
+                    <td align="right" style="color: #666; padding: 5px; font-size: 14px;">Gross Sales:</td>
+                    <td align="right" width="120" style="font-weight: bold; padding: 5px; color: #000;">${fmt(data.totals.total)}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 5px;"></td>
+                    <td style="padding: 5px;"></td>
+                    <td align="right" style="color: #666; padding: 5px; font-size: 14px;">Commission (20%):</td>
+                    <td align="right" style="color: #ef4444; padding: 5px;">-${fmt(data.totals.comm)}</td>
+                </tr>
+                <tr>
+                    <td style="padding-top: 20px;"></td>
+                    <td style="padding-top: 20px;"></td>
+                    <td align="right" style="padding-top: 20px; font-size: 14px; color: #000;">Net Payout:</td>
+                    <td align="right" style="padding-top: 20px; font-size: 18px; font-weight: bold; color: #16a34a; border-top: 2px solid #000;">${fmt(data.totals.payout)}</td>
+                </tr>
+            </table>
+
+        </div>
+
+        <!-- Footer -->
+        <div style="background: #f9f9f9; padding: 20px; text-align: center; font-size: 12px; color: #999;">
+            Generated by Street Junkies Console • Approved by Admin
+        </div>
     </div>
   </div>
-</body>
-</html>
   `;
 };
