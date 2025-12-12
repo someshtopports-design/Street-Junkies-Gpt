@@ -54,7 +54,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({ store }) => {
                 stock: parseInt(stock) || 0,
                 createdAt: new Date(),
                 qrToken: crypto.randomUUID(),
-                store: store // Save the store!
+                store: store
             };
 
             const docRef = await addDoc(collection(db, "inventory"), newItem);
@@ -71,12 +71,10 @@ export const InventoryView: React.FC<InventoryViewProps> = ({ store }) => {
         if (!retainDetails) {
             setName(""); setBrandId(""); setSize(""); setPrice(""); setStock("1");
         } else {
-            // Keep details for variation
             setStock("1");
         }
     }
 
-    // Filter Items by Text AND Store
     const filteredItems = items.filter(i => {
         const matchesStore = i.store === store || !i.store;
         const matchesText = i.name.toLowerCase().includes(filterText.toLowerCase()) ||
@@ -86,17 +84,14 @@ export const InventoryView: React.FC<InventoryViewProps> = ({ store }) => {
 
     const [isAddOpen, setIsAddOpen] = useState(true);
 
-    // Auto-collapse on mobile initial load
     useEffect(() => {
         if (window.innerWidth < 768) {
             setIsAddOpen(false);
         }
     }, []);
 
-    // ... (keep handleAddItem, closeModal, filteredItems) ...
-
     return (
-        <div className="flex flex-col h-[calc(100vh-100px)] md:h-[calc(100vh-140px)] gap-4">
+        <div className="flex flex-col gap-6 pb-20">
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
                 <div>
@@ -167,10 +162,10 @@ export const InventoryView: React.FC<InventoryViewProps> = ({ store }) => {
                 )}
             </Card>
 
-            {/* BOTTOM SECTION: Search & Scrollable List */}
-            <div className={`flex-1 flex flex-col gap-0 overflow-hidden bg-card border border-border/50 rounded-xl transition-all ${!isAddOpen ? 'shadow-md' : ''}`}>
+            {/* BOTTOM SECTION: Search & Full List */}
+            <div className="flex flex-col gap-0 bg-card border border-border/50 rounded-xl shadow-sm">
                 {/* Toolbar */}
-                <div className="p-3 border-b border-border/50 flex items-center justify-between bg-muted/20 shrink-0">
+                <div className="p-3 border-b border-border/50 flex items-center justify-between bg-muted/20 shrink-0 sticky top-0 z-20 backdrop-blur-md rounded-t-xl">
                     <div className="relative max-w-sm w-full">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
                         <Input
@@ -180,13 +175,12 @@ export const InventoryView: React.FC<InventoryViewProps> = ({ store }) => {
                             className="pl-9 h-8 text-sm bg-background/50 border-transparent focus:bg-background focus:border-input transition-all shadow-sm"
                         />
                     </div>
-                    {/* <Button variant="ghost" size="sm" className="h-8"><Filter className="w-3.5 h-3.5 mr-2" /> Filter</Button> */}
                 </div>
 
-                {/* Table */}
-                <div className="flex-1 overflow-y-auto min-h-[300px]">
+                {/* Table - No Internal Scroll, allow full page expansion */}
+                <div className="overflow-x-auto">
                     <table className="w-full text-sm text-left">
-                        <thead className="text-xs text-muted-foreground uppercase bg-muted/40 sticky top-0 z-10 backdrop-blur-md shadow-sm">
+                        <thead className="text-xs text-muted-foreground uppercase bg-muted/40 text-nowrap">
                             <tr>
                                 <th className="px-4 py-2.5 font-semibold">Product</th>
                                 <th className="px-4 py-2.5 font-semibold w-24 hidden md:table-cell">Brand</th>
@@ -238,7 +232,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({ store }) => {
                 </div>
             </div>
 
-            {/* QR Modal (Reusing existing logic tailored for layout) */}
+            {/* QR Modal */}
             {showQrModal && createdItem && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
                     <Card className="w-full max-w-sm p-8 flex flex-col items-center gap-6 shadow-2xl border-none ring-1 ring-white/10">
