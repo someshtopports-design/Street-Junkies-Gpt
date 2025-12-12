@@ -18,7 +18,7 @@ import {
     X,
     Filter
 } from "lucide-react";
-import { collection, query, orderBy, onSnapshot, writeBatch, doc } from "firebase/firestore";
+import { collection, query, orderBy, onSnapshot, writeBatch, doc, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { ConfirmDialog, AppAlertDialog } from "@/components/ui/app-dialogs";
 
@@ -145,13 +145,25 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ store, onSwitchSto
     const [alertConfig, setAlertConfig] = useState({ open: false, title: "", desc: "" });
 
     useEffect(() => {
-        const q = query(collection(db, "sales"), orderBy("createdAt", "desc"));
+        // Query ordered by creation time; Filter by Store
+        // Note: This requires a composite index on Firestore: store ASC, createdAt DESC
+        // If not present, Firestore will throw an error with a link to create it.
+        const q = query(
+            collection(db, "sales"),
+            where("store", "==", store),
+            orderBy("createdAt", "desc")
+        );
         const unsubscribe = onSnapshot(q, (snapshot) => {
             setSales(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
             setLoading(false);
+        }, (error) => {
+            console.error("Dashboard fetch error:", error);
+            // Fallback for missing index or other errors: might want to alert user or silent fail
+            // If index missing, error message in console contains the link.
+            setLoading(false);
         });
         return () => unsubscribe();
-    }, []);
+    }, [store]);
 
     // Filter Logic
     const filteredSales = useMemo(() => {
