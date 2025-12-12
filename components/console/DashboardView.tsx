@@ -156,20 +156,23 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ store, onSwitchSto
 
     useEffect(() => {
         // Query ordered by creation time; Filter by Store
-        // Note: This requires a composite index on Firestore: store ASC, createdAt DESC
-        // If not present, Firestore will throw an error with a link to create it.
+        // Note: Using client-side sorting to fail-safe against missing indexes
         const q = query(
             collection(db, "sales"),
-            where("store", "==", store),
-            orderBy("createdAt", "desc")
+            where("store", "==", store)
         );
         const unsubscribe = onSnapshot(q, (snapshot) => {
-            setSales(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+            const rawSales = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
+            // Client-side Sort
+            rawSales.sort((a, b) => {
+                const tA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : (new Date(a.date || 0).getTime());
+                const tB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : (new Date(b.date || 0).getTime());
+                return tB - tA;
+            });
+            setSales(rawSales);
             setLoading(false);
         }, (error) => {
             console.error("Dashboard fetch error:", error);
-            // Fallback for missing index or other errors: might want to alert user or silent fail
-            // If index missing, error message in console contains the link.
             setLoading(false);
         });
         return () => unsubscribe();

@@ -27,13 +27,23 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ store }) => {
     const [alertConfig, setAlertConfig] = useState({ open: false, title: "", desc: "" });
 
     React.useEffect(() => {
+        // Query without sorting to avoid Missing Index issues
         const q = query(
             collection(db, "sales"),
-            where("store", "==", store),
-            orderBy("createdAt", "desc")
+            where("store", "==", store)
         );
         const unsub = onSnapshot(q, snap => {
-            setSales(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+            const rawSales = snap.docs.map(d => ({ id: d.id, ...d.data() } as any));
+            // Client-side Sort
+            rawSales.sort((a, b) => {
+                const tA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : (new Date(a.date || 0).getTime());
+                const tB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : (new Date(b.date || 0).getTime());
+                return tB - tA;
+            });
+            setSales(rawSales);
+            setLoading(false);
+        }, (error) => {
+            console.error("Invoices fetch error:", error);
             setLoading(false);
         });
         return () => unsub();
