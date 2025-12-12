@@ -117,20 +117,15 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ store }) => {
         const specificTotal = data.total || 0;
 
         // Generate Rows HTML for the list of items
-        const rowsHtml = filtered
-            .filter(s => s.brand === brand) // Ensure we only dump rows for this brand
-            .map(s => `
-              <tr>
-                <td>
-                    <div style="font-weight:bold;">${s.item}</div>
-                    <div style="font-size:12px; color:#666;">ID: ${s.id?.slice(-6) || 'N/A'}</div>
-                </td>
-                <td style="text-align:center;">${s.quantity || 1}</td>
-                <td style="text-align:right;">₹${s.amount}</td>
-              </tr>
-            `).join("");
-
-
+        // Prepare raw objects for V3 template
+        const items = filtered
+            .filter(s => s.brand === brand)
+            .map(s => ({
+                desc: `${s.item} (ID: ${s.id?.slice(-6) || 'N/A'})`,
+                qty: s.quantity || 1,
+                price: parseFloat(String(s.unitPrice || s.amount).replace(/[^0-9.]/g, '')), // safe parse
+                amount: parseFloat(String(s.amount).replace(/[^0-9.]/g, ''))
+            }));
 
         setEmailPreview({
             ui_to_name: brand,
@@ -143,19 +138,13 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ store }) => {
                 to_name: brand,
                 status: "CONFIRMED",
                 invoice_date: new Date().toLocaleDateString('en-IN'),
-                seller_name: "Street Junkies India",
-                seller_address_line1: "New Delhi – 110048",
-                seller_address_line2: "India",
-                seller_gst: "07ABMCS5480Q1ZD",
-                brand_name: brand,
                 invoice_period: timeLabel,
-                items_rows: rowsHtml,
-                total_amount: specificTotal.toLocaleString(),
-                commission_percent: "20",
-                commission_amount: data.comm.toLocaleString(),
-                payout_amount: specificPayout.toLocaleString(),
-                signatory_name: "Admin",
-                signatory_title: "Street Junkies Team"
+                items: items,
+                totals: {
+                    total: specificTotal,
+                    comm: data.comm,
+                    payout: specificPayout
+                }
             }
         });
     };

@@ -1,100 +1,193 @@
-export const generateInvoiceHtml = (data: {
-  to_name: string;
-  to_email: string;
-  to_address?: string;
-  statement_for: string;
-  items: Array<{ desc: string; qty: number; price: number; amount: number }>;
-  totals: { total: number; comm: number; payout: number };
+export const generateV3InvoiceHtml = (data: {
+    to_name: string;
+    to_email: string;
+    invoice_date: string;
+    invoice_period: string;
+    items: Array<{ desc: string; qty: number; price: number; amount: number }>;
+    totals: { total: number; comm: number; payout: number };
+    status: string;
 }): string => {
-  // Format Currency
-  const fmt = (n: number) => `₹${n.toLocaleString()}`;
-
-  // Generate Rows
-  const rows = data.items.map(item => `
+    // Generate Rows
+    const rows = data.items.map(item => `
     <tr>
-      <td style="padding: 12px; border-bottom: 1px solid #eee;">
-        <div style="font-weight: bold; color: #333;">${item.desc}</div>
-      </td>
-      <td style="padding: 12px; border-bottom: 1px solid #eee; text-align: center;">${item.qty}</td>
-      <td style="padding: 12px; border-bottom: 1px solid #eee; text-align: center;">${fmt(item.price)}</td>
-      <td style="padding: 12px; border-bottom: 1px solid #eee; text-align: right; font-weight: bold;">${fmt(item.amount)}</td>
+        <td style="padding:10px 12px;border-bottom:1px solid #e2e8f0;font-size:11px;color:#334155;">
+        <strong>${item.desc}</strong>
+        </td>
+        <td align="center" style="padding:10px 12px;border-bottom:1px solid #e2e8f0;font-size:11px;color:#334155;">
+        ₹${item.price}
+        </td>
+        <td align="center" style="padding:10px 12px;border-bottom:1px solid #e2e8f0;font-size:11px;color:#334155;">
+        ${item.qty}
+        </td>
+        <td align="right" style="padding:10px 12px;border-bottom:1px solid #e2e8f0;font-size:11px;font-weight:700;color:#0f172a;">
+        ₹${item.amount}
+        </td>
     </tr>
-  `).join("");
+    `).join("");
 
-  // Full HTML Document (Fragment Only)
-  return `
-  <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background-color: #f6f6f6; padding: 20px;">
-    <!-- Container -->
-    <div style="width: 100%; max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.05);">
-        
-        <!-- Header -->
-        <div style="background: #000; color: #fff; padding: 30px; text-align: center;">
-            <h1 style="margin:0; font-size: 24px;">STREET JUNKIES</h1>
-            <p style="margin:5px 0 0; opacity: 0.7; font-size: 14px;">Payout Statement</p>
-        </div>
+    return `
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Invoice</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+  </head>
+  <body style="margin:0;padding:0;background:#f1f5f9;font-family:Arial,sans-serif;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+      <tr>
+        <td align="center" style="padding:24px 10px;">
+          <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0"
+            style="max-width:600px;background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;color:#0f172a;">
+            
+            <!-- HEADER -->
+            <tr>
+              <td style="padding:18px 20px;border-bottom:1px solid #e2e8f0;">
+                <table role="presentation" width="100%">
+                  <tr>
+                    <td>
+                      <div style="font-size:14px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;">
+                        Street Junkies India
+                      </div>
+                      <div style="font-size:11px;color:#64748b;letter-spacing:0.14em;text-transform:uppercase;">
+                        Partner payout statement
+                      </div>
+                    </td>
+                    <td align="right">
+                      <div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:0.14em;">
+                        Status
+                      </div>
+                      <div style="display:inline-block;margin-top:4px;padding:3px 10px;border-radius:999px;border:1px solid #22c55e;background:#dcfce7;color:#166534;font-size:10px;font-weight:700;letter-spacing:0.12em;">
+                        ${data.status}
+                      </div>
+                      <div style="margin-top:8px;font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:0.14em;">
+                        Date
+                      </div>
+                      <div style="font-size:12px;font-weight:700;">
+                        ${data.invoice_date}
+                      </div>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
 
-        <!-- Content -->
-        <div style="padding: 40px 30px;">
-        
-            <!-- Meta Section -->
-            <table style="margin-bottom: 30px; width: 100%; border-collapse: collapse;">
-                <tr>
-                <td valign="top">
-                    <div style="font-size: 10px; text-transform: uppercase; color: #999; letter-spacing: 1px;">Partner</div>
-                    <div style="font-weight: bold; font-size: 16px; margin-top: 4px; color: #000;">${data.to_name}</div>
-                    <div style="font-size: 12px; color: #666; margin-top: 2px;">${data.to_email}</div>
-                </td>
-                <td align="right" valign="top">
-                    <div style="font-size: 10px; text-transform: uppercase; color: #999; letter-spacing: 1px;">Period</div>
-                    <div style="font-weight: bold; font-size: 16px; margin-top: 4px; color: #000;">${data.statement_for}</div>
-                </td>
-                </tr>
-            </table>
+            <!-- FROM / TO -->
+            <tr>
+              <td style="padding:14px 20px;">
+                <table role="presentation" width="100%">
+                  <tr>
+                    <td width="50%" valign="top" style="padding-right:10px;">
+                      <div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:0.14em;margin-bottom:6px;">
+                        From
+                      </div>
+                      <div style="font-size:12px;font-weight:700;margin-bottom:4px;">Street Junkies India</div>
+                      <div style="font-size:12px;color:#475569;line-height:1.45;">
+                        New Delhi – 110048<br />
+                        India<br />
+                        GST: 07ABMCS5480Q1ZD
+                      </div>
+                    </td>
 
-            <!-- Line Items -->
-            <table style="width: 100%; margin-bottom: 30px; border-collapse: collapse;">
-                <thead>
-                <tr style="background: #f9f9f9;">
-                    <th style="text-align: left; padding: 10px; font-size: 10px; text-transform: uppercase; color: #999;">Item</th>
-                    <th style="text-align: center; padding: 10px; font-size: 10px; text-transform: uppercase; color: #999;">Qty</th>
-                    <th style="text-align: center; padding: 10px; font-size: 10px; text-transform: uppercase; color: #999;">Price</th>
-                    <th style="text-align: right; padding: 10px; font-size: 10px; text-transform: uppercase; color: #999;">Amount</th>
-                </tr>
-                </thead>
-                <tbody>
-                ${rows}
-                </tbody>
-            </table>
+                    <td width="50%" valign="top" style="padding-left:10px;">
+                      <div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:0.14em;margin-bottom:6px;">
+                        To
+                      </div>
+                      <div style="font-size:12px;font-weight:700;margin-bottom:4px;">${data.to_name}</div>
+                      <div style="font-size:12px;color:#475569;line-height:1.45;">
+                        Monthly payout statement for <strong>${data.invoice_period}</strong>
+                      </div>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
 
-            <!-- Totals -->
-            <table style="width: 100%; border-collapse: collapse;">
-                <tr>
-                    <td style="padding: 5px;"></td>
-                    <td style="padding: 5px;"></td>
-                    <td align="right" style="color: #666; padding: 5px; font-size: 14px;">Gross Sales:</td>
-                    <td align="right" width="120" style="font-weight: bold; padding: 5px; color: #000;">${fmt(data.totals.total)}</td>
-                </tr>
-                <tr>
-                    <td style="padding: 5px;"></td>
-                    <td style="padding: 5px;"></td>
-                    <td align="right" style="color: #666; padding: 5px; font-size: 14px;">Commission (20%):</td>
-                    <td align="right" style="color: #ef4444; padding: 5px;">-${fmt(data.totals.comm)}</td>
-                </tr>
-                <tr>
-                    <td style="padding-top: 20px;"></td>
-                    <td style="padding-top: 20px;"></td>
-                    <td align="right" style="padding-top: 20px; font-size: 14px; color: #000;">Net Payout:</td>
-                    <td align="right" style="padding-top: 20px; font-size: 18px; font-weight: bold; color: #16a34a; border-top: 2px solid #000;">${fmt(data.totals.payout)}</td>
-                </tr>
-            </table>
+            <!-- ITEMS TABLE -->
+            <tr>
+              <td style="padding:0 20px 14px 20px;">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+                  style="border-collapse:collapse;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">
+                  
+                  <thead>
+                    <tr style="background:#f8fafc;">
+                      <th align="left" style="padding:10px 12px;border-bottom:1px solid #e2e8f0;font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:0.14em;">
+                        Description
+                      </th>
+                      <th align="center" style="padding:10px 12px;border-bottom:1px solid #e2e8f0;font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:0.14em;">
+                        Price
+                      </th>
+                      <th align="center" style="padding:10px 12px;border-bottom:1px solid #e2e8f0;font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:0.14em;">
+                        Qty
+                      </th>
+                      <th align="right" style="padding:10px 12px;border-bottom:1px solid #e2e8f0;font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:0.14em;">
+                        Amount
+                      </th>
+                    </tr>
+                  </thead>
 
-        </div>
+                  <tbody>
+                    ${rows}
+                  </tbody>
+                </table>
+              </td>
+            </tr>
 
-        <!-- Footer -->
-        <div style="background: #f9f9f9; padding: 20px; text-align: center; font-size: 12px; color: #999;">
-            Generated by Street Junkies Console • Approved by Admin
-        </div>
-    </div>
-  </div>
-  `;
+            <!-- SUMMARY -->
+            <tr>
+              <td style="padding:0 20px 14px 20px;">
+                <table role="presentation" width="100%">
+                  <tr>
+                    <td width="60%" valign="top">
+                      <div style="font-size:12px;color:#475569;">
+                        Commission is calculated on total sales. Payout is net due to <strong>${data.to_name}</strong>.
+                      </div>
+                    </td>
+                    <td width="40%" valign="top" style="padding-left:10px;">
+                      <table role="presentation" width="100%" style="font-size:12px;">
+                        <tr>
+                          <td style="padding:4px 0;color:#64748b;">Total</td>
+                          <td align="right" style="padding:4px 0;font-weight:600;">₹${data.totals.total.toLocaleString()}</td>
+                        </tr>
+                        <tr>
+                          <td style="padding:4px 0;color:#64748b;">Commission (20%)</td>
+                          <td align="right" style="padding:4px 0;font-weight:600;">₹${data.totals.comm.toLocaleString()}</td>
+                        </tr>
+                        <tr>
+                          <td style="padding-top:8px;border-top:1px dashed #e2e8f0;font-weight:800;">Payout</td>
+                          <td align="right" style="padding-top:8px;border-top:1px dashed #e2e8f0;font-weight:800;color:#15803d;">
+                            ₹${data.totals.payout.toLocaleString()}
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+            <!-- FOOTER -->
+            <tr>
+              <td style="padding:16px 20px;border-top:1px solid #e2e8f0;">
+                <table role="presentation" width="100%">
+                  <tr>
+                    <td style="font-size:10px;color:#94a3b8;">
+                      Generated by Street Junkies Console. Not a valid tax invoice.
+                    </td>
+                    <td align="right">
+                      <div style="font-size:12px;font-weight:700;">Admin</div>
+                      <div style="font-size:10px;color:#64748b;">Street Junkies Team</div>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
+    `;
 };

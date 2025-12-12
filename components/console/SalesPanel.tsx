@@ -381,22 +381,12 @@ export const SalesPanel: React.FC<SalesPanelProps> = ({ store }) => {
                                     const itemName = selectedItem?.name || "Unknown Item";
 
                                     // 3. Prepare Data for New V3 Template
-                                    const rowHtml = `
-                                      <tr>
-                                        <td style="padding:10px 12px;border-bottom:1px solid #e2e8f0;font-size:11px;color:#334155;">
-                                          <strong>${itemName}</strong><br/>
-                                          <span style="color:#64748b;">${selectedItem?.brand} (${selectedItem?.size || 'OS'})</span>
-                                        </td>
-                                        <td align="center" style="padding:10px 12px;border-bottom:1px solid #e2e8f0;font-size:11px;color:#334155;">
-                                          ₹${sellingPrice}
-                                        </td>
-                                        <td align="center" style="padding:10px 12px;border-bottom:1px solid #e2e8f0;font-size:11px;color:#334155;">
-                                          ${qty}
-                                        </td>
-                                        <td align="right" style="padding:10px 12px;border-bottom:1px solid #e2e8f0;font-size:11px;font-weight:700;color:#0f172a;">
-                                          ₹${totalAmount}
-                                        </td>
-                                      </tr>`;
+                                    const items = [{
+                                        desc: `${itemName} (${selectedItem?.brand} - ${selectedItem?.size || 'OS'})`,
+                                        qty: parseInt(qty),
+                                        price: parseFloat(sellingPrice),
+                                        amount: totalAmount
+                                    }];
 
                                     setEmailPreview({
                                         ui_to_name: selectedItem?.brand || "Brand Partner",
@@ -409,19 +399,13 @@ export const SalesPanel: React.FC<SalesPanelProps> = ({ store }) => {
                                             to_name: selectedItem?.brand || "Partner",
                                             status: "CONFIRMED",
                                             invoice_date: new Date().toLocaleDateString('en-IN'),
-                                            seller_name: "Street Junkies India",
-                                            seller_address_line1: "New Delhi – 110048",
-                                            seller_address_line2: "India",
-                                            seller_gst: "07ABMCS5480Q1ZD",
-                                            brand_name: selectedItem?.brand || "Brand Partner",
                                             invoice_period: new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
-                                            items_rows: rowHtml,
-                                            total_amount: totalAmount,
-                                            commission_percent: "20",
-                                            commission_amount: (totalAmount * 0.2).toFixed(2),
-                                            payout_amount: payoutAmount,
-                                            signatory_name: "Admin",
-                                            signatory_title: "Street Junkies Team"
+                                            items: items,
+                                            totals: {
+                                                total: totalAmount,
+                                                comm: totalAmount * 0.2,
+                                                payout: parseFloat(payoutAmount)
+                                            }
                                         }
                                     });
                                 }}

@@ -10,25 +10,32 @@ interface EmailData {
 }
 
 export const sendInvoiceEmail = async (templateParams: Record<string, unknown>) => {
-    const serviceId = process.env.NEXT_PUBLIC_EMAILJS_SERVICE_ID!;
-    const templateId = process.env.NEXT_PUBLIC_EMAILJS_TEMPLATE_ID!;
-    const publicKey = process.env.NEXT_PUBLIC_EMAILJS_PUBLIC_KEY!;
-
-    if (!serviceId || !templateId || !publicKey) {
-        console.error("Missing EmailJS environment variables.");
-        throw new Error("Email service is not configured correctly.");
-    }
-
     try {
-        const response = await emailjs.send(
-            serviceId,
-            templateId,
-            templateParams,
-            publicKey
-        );
-        return response;
+        // Structure the payload for our API
+        // We expect 'templateParams' to contain a special 'api_payload' or we reconstruct it.
+        // Actually, let's just assume templateParams IS the data object for generation, plus to_email.
+
+        const response = await fetch('/api/email', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                to_email: templateParams.to_email,
+                to_name: templateParams.to_name,
+                subject: `Invoice for ${templateParams.to_name} from Street Junkies`,
+                data: templateParams // Pass everything for the template generator
+            }),
+        });
+
+        if (!response.ok) {
+            const err = await response.json();
+            throw new Error(err.error?.message || "Failed to send email");
+        }
+
+        return await response.json();
     } catch (error) {
-        console.error("EmailJS Error:", error);
+        console.error('Error sending email:', error);
         throw error;
     }
 };
