@@ -32,12 +32,31 @@ export const SalesPanel: React.FC<SalesPanelProps> = ({ store }) => {
     // Preview Modal State
     const [emailPreview, setEmailPreview] = useState<any>(null);
 
-    // Form State
-    const [cart, setCart] = useState<any[]>([]);
+    // Form State with Session Persistence
+    const [cart, setCart] = useState<any[]>(() => {
+        if (typeof window !== "undefined") {
+            const saved = sessionStorage.getItem("sj_cart_temp");
+            return saved ? JSON.parse(saved) : [];
+        }
+        return [];
+    });
 
     // Transaction State
-    const [customerName, setCustomerName] = useState("");
-    const [customerPhone, setCustomerPhone] = useState("");
+    const [customerName, setCustomerName] = useState(() => {
+        if (typeof window !== "undefined") return sessionStorage.getItem("sj_cust_name") || "";
+        return "";
+    });
+    const [customerPhone, setCustomerPhone] = useState(() => {
+        if (typeof window !== "undefined") return sessionStorage.getItem("sj_cust_phone") || "";
+        return "";
+    });
+
+    // Effect to persist state
+    useEffect(() => {
+        sessionStorage.setItem("sj_cart_temp", JSON.stringify(cart));
+        sessionStorage.setItem("sj_cust_name", customerName);
+        sessionStorage.setItem("sj_cust_phone", customerPhone);
+    }, [cart, customerName, customerPhone]);
 
     const [customerAddr, setCustomerAddr] = useState("");
 
@@ -273,6 +292,10 @@ export const SalesPanel: React.FC<SalesPanelProps> = ({ store }) => {
         setCustomerAddr("");
         setStep("search");
         setIsScanning(false);
+        // Clear session storage
+        sessionStorage.removeItem("sj_cart_temp");
+        sessionStorage.removeItem("sj_cust_name");
+        sessionStorage.removeItem("sj_cust_phone");
     }
 
     return (
