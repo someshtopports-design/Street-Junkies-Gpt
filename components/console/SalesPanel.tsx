@@ -14,7 +14,9 @@ import {
     Send
 } from "lucide-react";
 import { collection, query, onSnapshot, addDoc, doc, updateDoc, increment, getDocs, where } from "firebase/firestore";
+
 import { db } from "@/lib/firebase";
+import { Html5QrcodeScanner } from "html5-qrcode";
 
 interface SalesPanelProps {
     store: string;
@@ -31,6 +33,7 @@ export const SalesPanel: React.FC<SalesPanelProps> = ({ store }) => {
     // Form State
     const [manualId, setManualId] = useState("");
     const [selectedItem, setSelectedItem] = useState<any>(null);
+    const [isScanning, setIsScanning] = useState(false);
 
     // Transaction State
     const [sellingPrice, setSellingPrice] = useState("");
@@ -47,6 +50,38 @@ export const SalesPanel: React.FC<SalesPanelProps> = ({ store }) => {
         });
         return () => unsub();
     }, []);
+
+    useEffect(() => {
+        if (isScanning && step === 'search') {
+            const scanner = new Html5QrcodeScanner(
+                "reader",
+                { fps: 10, qrbox: { width: 250, height: 250 } },
+                false
+            );
+
+            const onScanSuccess = (decodedText: string) => {
+                const found = inventoryItems.find(i => i.id === decodedText);
+                if (found) {
+                    scanner.clear();
+                    setIsScanning(false);
+                    selectItem(found);
+                } else {
+                    // Optional: Provide feedback for invalid scan or keep scanning
+                    console.log("Scanned code not found in inventory:", decodedText);
+                }
+            };
+
+            const onScanFailure = (error: any) => {
+                // console.warn(`Code scan error = ${error}`);
+            };
+
+            scanner.render(onScanSuccess, onScanFailure);
+
+            return () => {
+                scanner.clear().catch(console.error);
+            };
+        }
+    }, [isScanning, step, inventoryItems]);
 
     const handleSearch = () => {
         const found = inventoryItems.find(i => i.id === manualId);
@@ -108,6 +143,7 @@ export const SalesPanel: React.FC<SalesPanelProps> = ({ store }) => {
         setCustomerAddr("");
         setQty("1");
         setStep("search");
+        setIsScanning(false);
     }
 
     return (
@@ -131,26 +167,33 @@ export const SalesPanel: React.FC<SalesPanelProps> = ({ store }) => {
                 {/* Step 1: Search */}
                 {step === "search" && (
                     <div className="flex flex-col gap-6 animate-in fade-in duration-300">
-                        <div className="text-center p-8 border-2 border-dashed border-border rounded-2xl bg-secondary/10 flex flex-col items-center gap-4 hover:bg-secondary/20 transition-colors cursor-pointer group">
-                            <div className="h-16 w-16 bg-background rounded-full flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform">
-                                <Camera className="w-8 h-8 text-primary" />
-                            </div>
-                            <div className="space-y-1">
-                                <h3 className="font-semibold text-sm">Scan QR Code</h3>
-                                <p className="text-[10px] text-muted-foreground max-w-[200px] mx-auto">Point camera at the item tag to instantly fetch details.</p>
-                            </div>
-                            {/* Mock Scanner Select */}
-                            <select
-                                className="text-xs border max-w-[200px] opacity-0 absolute inset-0 cursor-pointer"
-                                onChange={(e) => {
-                                    const found = inventoryItems.find(i => i.id === e.target.value);
-                                    if (found) selectItem(found);
-                                }}
-                            >
-                                <option value="">Mock Scan...</option>
-                                {inventoryItems.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
-                            </select>
-                            <Badge variant="secondary" className="text-[9px]">MOCK MODE: CLICK TO SELECT ITEM</Badge>
+                        <div className="relative overflow-hidden min-h-[250px] rounded-2xl bg-secondary/10 border-2 border-dashed border-border flex flex-col items-center justify-center transition-colors">
+                            {!isScanning ? (
+                                <div
+                                    className="flex flex-col items-center gap-4 cursor-pointer p-8 w-full h-full hover:bg-secondary/20 transition-colors"
+                                    onClick={() => setIsScanning(true)}
+                                >
+                                    <div className="h-16 w-16 bg-background rounded-full flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform">
+                                        <Camera className="w-8 h-8 text-primary" />
+                                    </div>
+                                    <div className="space-y-1 text-center">
+                                        <h3 className="font-semibold text-sm">Scan QR Code</h3>
+                                        <p className="text-[10px] text-muted-foreground max-w-[200px] mx-auto">Tap to start camera scanner</p>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="w-full p-4 flex flex-col items-center">
+                                    <div id="reader" className="w-full max-w-[300px] overflow-hidden rounded-lg"></div>
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => setIsScanning(false)}
+                                        className="mt-4 text-red-500 hover:text-red-600 hover:bg-red-50"
+                                    >
+                                        Stop Scanner
+                                    </Button>
+                                </div>
+                            )}
                         </div>
 
                         <div className="relative">

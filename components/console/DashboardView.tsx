@@ -182,7 +182,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ store, onSwitchSto
     }, [filteredSales]);
 
     return (
-        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 h-[calc(100vh-100px)] flex flex-col overflow-hidden">
+        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 h-[calc(100vh-100px)] flex flex-col overflow-y-auto md:overflow-hidden">
 
             {/* Hero Header */}
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 shrink-0">
@@ -254,11 +254,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ store, onSwitchSto
             </div>
 
             {/* Main Content Grid */}
-            <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-6 overflow-hidden min-h-0">
-                <div className="lg:col-span-2 overflow-hidden h-full">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 shrink-0 h-auto md:flex-1 md:overflow-hidden md:min-h-0">
+                <div className="lg:col-span-2 overflow-hidden h-[500px] md:h-full">
                     <RecentSalesList sales={filteredSales.slice(0, 20)} loading={loading} />
                 </div>
-                <div className="overflow-hidden h-full">
+                <div className="overflow-hidden h-[400px] md:h-full">
                     <BrandPerformanceMap sales={filteredSales} />
                 </div>
             </div>
