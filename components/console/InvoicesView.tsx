@@ -121,10 +121,12 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ store }) => {
             .filter(s => s.brand === brand) // Ensure we only dump rows for this brand
             .map(s => `
               <tr>
-                <td style="border:1px solid #ddd;">${s.item}</td>
-                <td style="border:1px solid #ddd; text-align:center;">₹${s.unitPrice || s.amount}</td>
-                <td style="border:1px solid #ddd; text-align:center;">${s.quantity || 1}</td>
-                <td style="border:1px solid #ddd; text-align:right;">₹${s.amount}</td>
+                <td>
+                    <div style="font-weight:bold;">${s.item}</div>
+                    <div style="font-size:12px; color:#666;">ID: ${s.id?.slice(-6) || 'N/A'}</div>
+                </td>
+                <td style="text-align:center;">${s.quantity || 1}</td>
+                <td style="text-align:right;">₹${s.amount}</td>
               </tr>
             `).join("");
 
@@ -133,23 +135,16 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ store }) => {
             ui_to_email: brandEmail,
             ui_message: `Invoice Report (${store})\nPeriod: ${timeLabel}`,
             ui_details: `Total Sales Volume: ₹${specificTotal.toLocaleString()}\nCommission Deducted: ₹${data.comm.toLocaleString()}\n\nNET PAYOUT AMOUNT: ₹${specificPayout.toLocaleString()}`,
+
+            // V2 Params
             emailParams: {
                 to_name: brand,
                 to_email: brandEmail,
-                status: "GENERATED",
-                status_bg: "#ebf8ff",
-                status_border: "#bee3f8",
-                status_text: "#2b6cb0",
-                statement_month: timeLabel,
-                from_address: "New Delhi",
-                to_address: brandEmail,
-                items_rows: rowsHtml,
-                total_amount: `₹${specificTotal.toLocaleString()}`,
-                commission_percent: "20",
-                commission_amount: `₹${data.comm.toLocaleString()}`,
-                payout_amount: `₹${specificPayout.toLocaleString()}`,
-                approved_by: "Admin",
-                approved_title: "Street Junkies Team"
+                statement_for: timeLabel,
+                rows_html: rowsHtml,
+                total_val: `₹${specificTotal.toLocaleString()}`,
+                comm_val: `₹${data.comm.toLocaleString()}`,
+                payout_val: `₹${specificPayout.toLocaleString()}`
             }
         });
     };

@@ -382,10 +382,12 @@ export const SalesPanel: React.FC<SalesPanelProps> = ({ store }) => {
 
                                     const rowHtml = `
                                       <tr>
-                                        <td style="border:1px solid #ddd;">${itemName} (${selectedItem?.size || '-'})</td>
-                                        <td style="border:1px solid #ddd; text-align:center;">₹${sellingPrice}</td>
-                                        <td style="border:1px solid #ddd; text-align:center;">${qty}</td>
-                                        <td style="border:1px solid #ddd; text-align:right;">₹${totalAmount}</td>
+                                        <td>
+                                            <div style="font-weight:bold;">${itemName}</div>
+                                            <div style="font-size:12px; color:#666;">${selectedItem?.brand} - Size: ${selectedItem?.size || 'OS'}</div>
+                                        </td>
+                                        <td style="text-align: center;">${qty}</td>
+                                        <td style="text-align: right;">₹${totalAmount}</td>
                                       </tr>`;
 
                                     setEmailPreview({
@@ -393,22 +395,16 @@ export const SalesPanel: React.FC<SalesPanelProps> = ({ store }) => {
                                         ui_to_email: brandEmail,
                                         ui_message: `New Sale Confirmed: ${itemName}`,
                                         ui_details: `Item: ${itemName}\nQty: ${qty}\nTotal: ₹${totalAmount}\nPayout: ₹${payoutAmount}`,
+
+                                        // V2 Params
                                         emailParams: {
                                             to_name: selectedItem?.brand || "Partner",
-                                            status: "CONFIRMED",
-                                            status_bg: "#e6fffa",
-                                            status_border: "#b2f5ea",
-                                            status_text: "#2c7a7b",
-                                            statement_month: new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
-                                            from_address: "New Delhi",
-                                            to_address: brandEmail,
-                                            items_rows: rowHtml,
-                                            total_amount: `₹${totalAmount}`,
-                                            commission_percent: "20",
-                                            commission_amount: `₹${(totalAmount * 0.2).toFixed(2)}`,
-                                            payout_amount: `₹${payoutAmount}`,
-                                            approved_by: "Admin",
-                                            approved_title: "Street Junkies Team"
+                                            to_email: brandEmail,
+                                            statement_for: new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }),
+                                            rows_html: rowHtml,
+                                            total_val: `₹${totalAmount}`,
+                                            comm_val: `₹${(totalAmount * 0.2).toFixed(2)}`,
+                                            payout_val: `₹${payoutAmount}`
                                         }
                                     });
                                 }}
