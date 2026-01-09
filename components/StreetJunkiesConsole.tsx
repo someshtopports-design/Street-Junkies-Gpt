@@ -75,14 +75,10 @@ const StreetJunkiesConsole: React.FC = () => {
             setRoute("admin/sales");
           }
         } catch (error) {
-          console.error("Error fetching user role:", error);
-          // Fallback on error - arguably we should let them in or show error
-          // For now, let's default to basic role so they aren't locked out entirely? 
-          // Or maybe better to logout. 
-          // Let's stick to safe behavior: log error, maybe role stays null?
-          // If role is null, they see login screen.
-          // Let's set a default fallback so they can at least see the app if it's transient?
-          // No, security first. If fetch fails, we don't know permissions.
+          console.error("Error fetching user role, defaulting to sales:", error);
+          // Fallback to allow access
+          setRole("sales");
+          setRoute((prev) => (prev === "login" ? "admin/sales" : prev));
         }
       } else {
         setRole(null);
