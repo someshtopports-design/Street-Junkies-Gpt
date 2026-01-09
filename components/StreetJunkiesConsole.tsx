@@ -44,12 +44,26 @@ const StreetJunkiesConsole: React.FC = () => {
 
   // --- Auth & Init ---
   useEffect(() => {
-    if (!auth) return;
+    if (!auth) {
+      console.error("Firebase Auth not initialized. Check environment variables.");
+      setLoading(false);
+      return;
+    }
+
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
       if (currentUser) {
         try {
-          const userDoc = await getDoc(doc(db, "users", currentUser.uid));
+          // Add a timeout to the user doc fetch to prevent hanging
+          const userDocPromise = getDoc(doc(db, "users", currentUser.uid));
+
+          // Race against a timeout
+          const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error("Timeout fetching user profile")), 10000)
+          );
+
+          const userDoc = await Promise.race([userDocPromise, timeoutPromise]) as any;
+
           if (userDoc.exists()) {
             const userData = userDoc.data() as { role: Role };
             setRole(userData.role || "sales");
@@ -62,6 +76,13 @@ const StreetJunkiesConsole: React.FC = () => {
           }
         } catch (error) {
           console.error("Error fetching user role:", error);
+          // Fallback on error - arguably we should let them in or show error
+          // For now, let's default to basic role so they aren't locked out entirely? 
+          // Or maybe better to logout. 
+          // Let's stick to safe behavior: log error, maybe role stays null?
+          // If role is null, they see login screen.
+          // Let's set a default fallback so they can at least see the app if it's transient?
+          // No, security first. If fetch fails, we don't know permissions.
         }
       } else {
         setRole(null);
@@ -103,7 +124,7 @@ const StreetJunkiesConsole: React.FC = () => {
   };
 
   const handleLogout = async () => {
-    await signOut(auth);
+    if (auth) await signOut(auth);
     setRole(null);
     setRoute("login");
     setStore(null);
@@ -126,6 +147,24 @@ const StreetJunkiesConsole: React.FC = () => {
   }
 
   if (!user || !role) {
+    if (!auth) {
+      return (
+        <div className="min-h-screen bg-background flex flex-col items-center justify-center p-8 text-center space-y-6">
+          <div className="h-20 w-20 rounded-full bg-red-500/10 flex items-center justify-center">
+            <svg className="w-10 h-10 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+          </div>
+          <div className="max-w-md space-y-2">
+            <h2 className="text-2xl font-bold text-foreground">Configuration Error</h2>
+            <p className="text-muted-foreground">
+              The application could not connect to the authentication service.
+              This is likely due to missing environment variables or network issues.
+            </p>
+          </div>
+        </div>
+      );
+    }
     return <LoginScreen onLogin={handleLogin} />;
   }
 
