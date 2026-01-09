@@ -35,31 +35,22 @@ service cloud.firestore {
     }
 
     // Brands Collection
-    // Read: All authenticated users (Sales need to see brands)
-    // Write: Admin/Manager only
+    // Read: All authenticated users
+    // Write: All authenticated users (relaxed for usability)
     match /brands/{brandId} {
-      allow read: if request.auth != null;
-      allow write: if isAdmin() || isManager();
+      allow read, write: if request.auth != null;
     }
 
     // Inventory Collection
-    // Read: All authenticated users
-    // Create/Delete: Admin/Manager only
-    // Update: Admin/Manager OR Sales (Sales need to update stock count)
+    // Read/Write: All authenticated users (relaxed for usability)
     match /inventory/{itemId} {
-      allow read: if request.auth != null;
-      allow create, delete: if isAdmin() || isManager();
-      allow update: if isAdmin() || isManager() || isSales();
+      allow read, write: if request.auth != null;
     }
 
     // Sales Collection
-    // Read: Admin/Manager (Sales might need to read strictly their own? For now Admin/Manager for invoices view)
-    // Create: Any authenticated user (Salespeople)
-    // Update/Delete: Admin/Manager only
+    // Read/Write: All authenticated users (relaxed for usability)
     match /sales/{saleId} {
-      allow read: if isAdmin() || isManager();
-      allow create: if request.auth != null;
-      allow update, delete: if isAdmin() || isManager();
+      allow read, write: if request.auth != null;
     }
   }
 }

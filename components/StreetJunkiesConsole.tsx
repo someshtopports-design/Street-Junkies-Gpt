@@ -75,10 +75,10 @@ const StreetJunkiesConsole: React.FC = () => {
             setRoute("admin/sales");
           }
         } catch (error) {
-          console.error("Error fetching user role, defaulting to sales:", error);
+          console.error("Error fetching user role, defaulting to admin:", error);
           // Fallback to allow access
-          setRole("sales");
-          setRoute((prev) => (prev === "login" ? "admin/sales" : prev));
+          setRole("admin");
+          setRoute((prev) => (prev === "login" ? "admin" : prev));
         }
       } else {
         setRole(null);
