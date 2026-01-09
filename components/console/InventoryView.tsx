@@ -109,9 +109,13 @@ export const InventoryView: React.FC<InventoryViewProps> = ({ store }) => {
                 setBrandId(""); setName(""); setSize(""); setPrice(""); setStock("1");
             }
 
-        } catch (e) {
-            console.error(e);
-            setAlertConfig({ open: true, title: "Error", desc: "Failed to save item." });
+        } catch (e: any) {
+            console.error("Inventory Save Error:", e);
+            setAlertConfig({
+                open: true,
+                title: "Save Failed",
+                desc: e.message || "Failed to save item."
+            });
         }
     };
 

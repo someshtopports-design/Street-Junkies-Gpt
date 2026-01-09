@@ -50,9 +50,13 @@ export const BrandsView: React.FC = () => {
                 });
             }
             resetForm();
-        } catch (e) {
-            console.error(e);
-            setAlertConfig({ open: true, title: "Error", desc: "Failed to save brand details." });
+        } catch (e: any) {
+            console.error("Brand Save Error:", e);
+            setAlertConfig({
+                open: true,
+                title: "Save Failed",
+                desc: e.message ? `Error: ${e.message}` : "Failed to save brand details. Check console/permissions."
+            });
         }
     }
 
