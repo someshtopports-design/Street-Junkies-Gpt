@@ -174,7 +174,6 @@ export const SalesPanel: React.FC<SalesPanelProps> = ({ store }) => {
     const submitSale = async () => {
         if (cart.length === 0) return;
         try {
-            const batchEmailItems: any[] = [];
             let totalSaleAmount = 0;
             let totalPayoutAmount = 0;
 
@@ -208,9 +207,6 @@ export const SalesPanel: React.FC<SalesPanelProps> = ({ store }) => {
                 });
 
                 // Update Inventory (Decrease Stock)
-                // Note: Logic depends on how you handle stock. Assuming "qty" field in inventory.
-                // If unique items, maybe mark status='sold'.
-                // For now, decrement stock if available.
                 if (item.stock && item.stock > 0) {
                     const itemRef = doc(db, "inventory", item.id);
                     await updateDoc(itemRef, {
@@ -218,23 +214,7 @@ export const SalesPanel: React.FC<SalesPanelProps> = ({ store }) => {
                         sold: increment(q)
                     });
                 }
-
-                // Prepare for Email
-                batchEmailItems.push({
-                    desc: `${item.name} (${item.brand} - ${item.size || 'OS'})`,
-                    qty: q,
-                    price: finalPrice,
-                    amount: total,
-                    brand: item.brand,
-                    brandEmail: item.brandEmail // Assuming brandEmail is on the item
-                });
             }
-
-            // Send Email (Grouped by Brand if possible, or just send one to admin/first brand?)
-            // For simplicity, let's send to the first item's brand or a gathered list.
-            // Requirement was specific brand. If mixed brands, we might need multiple emails.
-            // Let's assume mostly 1 brand per transaction or send distinct emails.
-            // For MVP: Send 1 email using the first item's brand info as context, or if mixed, warn user.
 
             setStep("success");
         } catch (error) {

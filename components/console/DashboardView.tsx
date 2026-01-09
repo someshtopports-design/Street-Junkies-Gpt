@@ -92,7 +92,10 @@ const RecentSalesList = ({ sales, loading }: { sales: any[], loading: boolean })
                     </div>
                     <div className="text-right">
                         <div className="text-sm font-bold text-foreground">₹{sale.amount}</div>
-                        <div className="text-[10px] text-muted-foreground">{sale.createdAt?.toDate ? sale.createdAt.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Just now'}</div>
+                        <div className="text-[10px] text-muted-foreground">
+                            {sale.createdAt?.toDate ? sale.createdAt.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) :
+                                (sale.date ? new Date(sale.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Just now')}
+                        </div>
                     </div>
                 </div>
             ))}
@@ -165,8 +168,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ store, onSwitchSto
             const rawSales = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
             // Client-side Sort
             rawSales.sort((a, b) => {
-                const tA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : (new Date(a.date || 0).getTime());
-                const tB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : (new Date(b.date || 0).getTime());
+                const tA = a.timestamp || (a.createdAt?.toDate ? a.createdAt.toDate().getTime() : new Date(a.date || 0).getTime());
+                const tB = b.timestamp || (b.createdAt?.toDate ? b.createdAt.toDate().getTime() : new Date(b.date || 0).getTime());
                 return tB - tA;
             });
             setSales(rawSales);
